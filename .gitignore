@@ -52,6 +52,11 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Test data
+memento_cache
+results
+memento.sqlite
+
 # Translations
 *.mo
 *.pot

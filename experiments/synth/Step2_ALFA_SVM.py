@@ -3,6 +3,8 @@
 import argparse
 import glob
 import os
+import sys
+sys.path.append(os.path.abspath('C:/University/PROJECT/diva-2'))
 import time
 import warnings
 from pathlib import Path
@@ -20,6 +22,7 @@ from label_flip_revised.utils import (create_dir, open_csv, open_json, to_csv,
 # Ignore warnings from optimization.
 # The optimization step in ALFA may fail. The attack still works despite the optimization failed.
 warnings.filterwarnings('ignore')
+
 
 ALFA_MAX_ITER = 5  # Number of iteration for ALFA.
 N_ITER_SEARCH = 50  # Number of iteration for SVM parameter tuning.
