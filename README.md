@@ -8,6 +8,6 @@
 8. Generate more synthetic datasets
 9. Poison them
 10. Compute their C-measures
-11. Feed C-measures into the meta-learner which will spit out an estimated accuracy that our classifier should reach
+11. Feed C-measures into the meta-learner which will spit out an estimated accuracy that our classifier should reach (if it were non-poisoned)
 12. Actually train a classifier on the poisoned data and save its accuracy
 13. Compare its accuracy to the meta-learner's estimated accuracy, if large it is poisoned.
