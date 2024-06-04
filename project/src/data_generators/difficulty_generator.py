@@ -1,6 +1,3 @@
-"""Generate synthetic data.
-"""
-import argparse
 import glob
 import math
 import os
@@ -12,11 +9,11 @@ from sklearn.datasets import make_classification
 from sklearn.model_selection import ParameterGrid, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-from generators.generator import Generator
 
-class DifficultyGenerator(Generator):
+class DifficultyGenerator:
     def __init__(self, n_sets, folder):
-        super().__init__(n_sets, folder)
+        self.n_sets = n_sets
+        self.folder = folder
         self.N_SAMPLES = np.arange(1000, 2001, 200)
         self.N_CLASSES = 2  # Number of classes
         self.N_DIFFICULTY = 3
@@ -52,18 +49,18 @@ class DifficultyGenerator(Generator):
         clf = SVC()
         clf.fit(X_train, y_train)
         acc = clf.score(X_test, y_test)
-        if acc <= self.DIFFICULTY_RANGE[0] and bins[0] > 0:  # Easy
+        if acc <= self.DIFFICULTY_RANGE[0] and bins[2] > 0:  # Hard
             self.save_data(df, file_name, data_path, 'Hard', postfix)
-            bins[0] -= 1
-            print(f'Easy:   {bins[0]}')
+            bins[2] -= 1
+            print(f'Hard:   {bins[2]}')
         elif acc <= self.DIFFICULTY_RANGE[1] and bins[1] > 0:  # Normal
             self.save_data(df, file_name, data_path, 'Normal', postfix)
             bins[1] -= 1
             print(f'Normal: {bins[1]}')
-        elif acc > self.DIFFICULTY_RANGE[1] and bins[2] > 0:  # Hard
+        elif acc > self.DIFFICULTY_RANGE[1] and bins[0] > 0:  # Easy
             self.save_data(df, file_name, data_path, 'Easy', postfix)
-            bins[2] -= 1
-            print(f'Hard:   {bins[2]}')
+            bins[0] -= 1
+            print(f'Easy:   {bins[0]}')
         else:
             print(f'Ditch {file_name}')
 
@@ -86,7 +83,7 @@ class DifficultyGenerator(Generator):
                 'n_features': [f],
                 'n_repeated': [0],
                 'n_informative': np.arange(math.ceil(f / 2), f + 1),
-                'weights': np.expand_dims([0.4, 0.5, 0.6], axis=1)})
+                'weights': [[0.4], [0.5], [0.6]]})
         param_sets = list(ParameterGrid(grid))
         print('# of parameter sets:', len(param_sets))
         for i in range(len(param_sets)):
@@ -108,3 +105,16 @@ class DifficultyGenerator(Generator):
                 print('Generation completed!')
                 break
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--nSets', default=1000, type=int,
+                        help='# of random generated synthetic data sets.')
+    parser.add_argument('-f', '--folder', default='synth', type=str,
+                        help='The output folder.')
+    args = parser.parse_args()
+    
+    # Create an instance of DifficultyGenerator
+    generator = DifficultyGenerator(args.nSets, args.folder)
+    
+    # Generate synthetic datasets
+    generator.synth_data_grid()
