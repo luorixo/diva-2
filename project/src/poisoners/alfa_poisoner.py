@@ -9,14 +9,15 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.svm import SVC
-from sklearn.utils.fixes import loguniform
+# from sklearn.utils.fixes import loguniform
+from scipy.stats import loguniform
 
-from label_flip_revised import alfa
-from label_flip_revised.utils import (create_dir, open_csv, open_json, to_csv,
+
+from utils import alfa
+from utils.utils import (create_dir, open_csv, open_json, to_csv,
                                       to_json, transform_label)
 
 # Ignore warnings from optimization.
-# The optimization step in ALFA may fail. The attack still works despite the optimization failing.
 warnings.filterwarnings('ignore')
 
 ALFA_MAX_ITER = 5  # Number of iterations for ALFA.
@@ -145,7 +146,7 @@ def alfa_poison(dataset, advx_range, path_output):
     df = pd.DataFrame(data)
     df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
 
-if __name__ == '__main':
+if __name__ == '__main__':
     # Example usage:
     # python alfa_poison.py -f "data/synth" -o "results/synth" -s 0.05 -m 0.41
     parser = argparse.ArgumentParser()
@@ -161,28 +162,18 @@ if __name__ == '__main':
     filepath = str(Path(args.filepath).absolute())
     output = str(Path(args.output).absolute())
     step = args.step
-    max = args.max
+    max_ = args.max
 
-    advxrange = np.arange(0, max, step)
+    advx_range = np.arange(0, max_, step)
 
     print('Path:', filepath)
-    print('Range:', advxrange)
+    print('Range:', advx_range)
 
-    train_list = sorted(glob.glob(os.path.join(filepath, 'train', '.csv')))
-    test_list = sorted(glob.glob(os.path.join(filepath, 'test', '.csv')))
+    train_list = sorted(glob.glob(os.path.join(filepath, 'train', '*.csv')))
+    test_list = sorted(glob.glob(os.path.join(filepath, 'test', '*.csv')))
     assert len(train_list) == len(test_list)
     print('Found {} datasets'.format(len(train_list)))
 
     for train, test in zip(train_list, test_list):
         dataset = {'train': train, 'test': test}
-        alfa_poison(dataset, advxrange, output)
-import argparse
-from data_generators.difficulty_generator import DifficultyGenerator
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.addargument('-n', '--nSets', default=100, type=int,
-                        help='# of random generated synthetic data sets.')
-    parser.addargument('-f', '--folder', default='synth', type=str,
-                        help='The output folder.')
-    args = parser.parse_args()
+        alfa_poison(dataset, advx_range, output)
