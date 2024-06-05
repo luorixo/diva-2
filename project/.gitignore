@@ -10,6 +10,9 @@ __pycache__/
 .Python
 data
 build/
+split
+results
+result
 develop-eggs/
 dist/
 downloads/
