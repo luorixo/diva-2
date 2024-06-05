@@ -6,12 +6,13 @@ import numpy as np
 
 from data_generators.difficulty_generator import DifficultyGenerator
 from poisoners.alfa_poisoner import alfa_poison
+from utils.test_train_split import split_data
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--nSets', default=100, type=int,
                         help='# of random generated synthetic data sets.')
-    parser.add_argument('-f', '--folder', default='synth', type=str,
+    parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')
     parser.add_argument('-o', '--output', type=str, default='results/synth',
                         help='The output path for scores.')
@@ -36,8 +37,12 @@ def main():
     print('Path:', filepath)
     print('Range:', advx_range)
 
-    train_list = sorted(glob.glob(os.path.join(filepath, 'train', '*.csv')))
-    test_list = sorted(glob.glob(os.path.join(filepath, 'test', '*.csv')))
+    data_path = os.path.join(filepath, 'data')
+    split_path = os.path.join(filepath, 'split')
+    split_data(data_path, split_path, 0.2)
+
+    train_list = sorted(glob.glob(os.path.join(split_path, 'train', '*.csv')))
+    test_list = sorted(glob.glob(os.path.join(split_path, 'test', '*.csv')))
     assert len(train_list) == len(test_list)
     print('Found {} datasets'.format(len(train_list)))
 
