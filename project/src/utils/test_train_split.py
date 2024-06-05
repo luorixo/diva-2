@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from utils.utils import create_dir, open_csv, to_csv
 
 
-def split_data(path_data, path_output, test_size):
+def test_train_split(path_data, path_output, test_size):
     filepath = str(Path(path_data).absolute())
     output = str(Path(path_output).absolute())
 

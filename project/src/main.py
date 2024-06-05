@@ -6,7 +6,7 @@ import numpy as np
 
 from data_generators.difficulty_generator import DifficultyGenerator
 from poisoners.alfa_poisoner import alfa_poison
-from utils.test_train_split import split_data
+from utils.test_train_split import test_train_split
 
 def main():
     parser = argparse.ArgumentParser()
@@ -39,7 +39,7 @@ def main():
 
     data_path = os.path.join(filepath, 'data')
     split_path = os.path.join(filepath, 'split')
-    split_data(data_path, split_path, 0.2)
+    test_train_split(data_path, split_path, 0.2)
 
     train_list = sorted(glob.glob(os.path.join(split_path, 'train', '*.csv')))
     test_list = sorted(glob.glob(os.path.join(split_path, 'test', '*.csv')))
