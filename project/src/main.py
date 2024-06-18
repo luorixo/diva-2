@@ -7,6 +7,22 @@ import numpy as np
 from data_generators.difficulty_generator import DifficultyGenerator
 from poisoners.alfa_poisoner import alfa_poison
 from utils.test_train_split import test_train_split
+from memento import Config, Context, Memento
+
+def poison_experiment(context: Context, config: Config):
+
+    # Grab values from matrix
+    data = config.data
+    output = config.output
+    poison_method = config.poison_method
+    step = config.poison_step
+    max_ = config.poison_max
+
+    dataset = {"train": data[0], "test": data[1]}
+    advx_range = np.arange(0, max_, step)
+
+    return poison_method(dataset, advx_range, output)
+    
 
 def main():
     parser = argparse.ArgumentParser()
@@ -29,13 +45,6 @@ def main():
     # Perform ALFA poisoning attack
     filepath = str(Path(args.folder).absolute())
     output = str(Path(args.output).absolute())
-    step = args.step
-    max_ = args.max
-
-    advx_range = np.arange(0, max_, step)
-
-    print('Path:', filepath)
-    print('Range:', advx_range)
 
     data_path = os.path.join(filepath, 'data')
     split_path = os.path.join(filepath, 'split')
@@ -44,11 +53,22 @@ def main():
     train_list = sorted(glob.glob(os.path.join(split_path, 'train', '*.csv')))
     test_list = sorted(glob.glob(os.path.join(split_path, 'test', '*.csv')))
     assert len(train_list) == len(test_list)
+
     print('Found {} datasets'.format(len(train_list)))
 
-    for train, test in zip(train_list, test_list):
-        dataset = {'train': train, 'test': test}
-        alfa_poison(dataset, advx_range, output)
+    data = list(zip(train_list, test_list))
+
+    matrix_poison = {
+        "parameters": {
+            "data": data,
+            "output": [output],
+            "poison_method": [alfa_poison],
+            "poison_max": [args.max],
+            "poison_step": [args.step]
+        },
+    }
+
+    Memento(poison_experiment).run(matrix_poison)
 
 if __name__ == '__main__':
     main()

@@ -145,35 +145,3 @@ def alfa_poison(dataset, advx_range, path_output):
     }
     df = pd.DataFrame(data)
     df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
-
-if __name__ == '__main__':
-    # Example usage:
-    # python alfa_poison.py -f "data/synth" -o "results/synth" -s 0.05 -m 0.41
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--filepath', type=str, required=True,
-                        help='The path of the data')
-    parser.add_argument('-o', '--output', type=str, default='results/synth',
-                        help='The output path for scores.')
-    parser.add_argument('-s', '--step', type=float, default=0.05,
-                        help='Spacing between values. Default=0.05')
-    parser.add_argument('-m', '--max', type=float, default=0.41,
-                        help='End of interval. Default=0.41')
-    args = parser.parse_args()
-    filepath = str(Path(args.filepath).absolute())
-    output = str(Path(args.output).absolute())
-    step = args.step
-    max_ = args.max
-
-    advx_range = np.arange(0, max_, step)
-
-    print('Path:', filepath)
-    print('Range:', advx_range)
-
-    train_list = sorted(glob.glob(os.path.join(filepath, 'train', '*.csv')))
-    test_list = sorted(glob.glob(os.path.join(filepath, 'test', '*.csv')))
-    assert len(train_list) == len(test_list)
-    print('Found {} datasets'.format(len(train_list)))
-
-    for train, test in zip(train_list, test_list):
-        dataset = {'train': train, 'test': test}
-        alfa_poison(dataset, advx_range, output)
