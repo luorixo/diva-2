@@ -53,7 +53,8 @@ def main():
         alfa_poison(dataset, advx_range, output)
 
     # Extract complexity measures from poisoned datasets
-    complexity_measures_df = extract_complexity_measures(output)
+    # directory hard coded for now
+    complexity_measures_df = extract_complexity_measures(os.path.join(output, 'alfa_svm'))
 
     # Print the complexity measures
     print(complexity_measures_df)
