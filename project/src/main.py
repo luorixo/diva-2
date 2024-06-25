@@ -3,10 +3,12 @@ import glob
 import os
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 from data_generators.difficulty_generator import DifficultyGenerator
 from poisoners.alfa_poisoner import alfa_poison
 from utils.test_train_split import test_train_split
+from meta_database.extract_complexity_measures import extract_complexity_measures
 from memento import Config, Context, Memento
 
 def poison_experiment(context: Context, config: Config):
@@ -26,7 +28,7 @@ def poison_experiment(context: Context, config: Config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=100, type=int,
+    parser.add_argument('-n', '--nSets', default=10, type=int,
                         help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')
@@ -69,6 +71,13 @@ def main():
     }
 
     Memento(poison_experiment).run(matrix_poison)
+
+    # Extract complexity measures from poisoned datasets
+    # directory hard coded for now
+    complexity_measures_df = extract_complexity_measures(os.path.join(output, 'alfa_svm'))
+
+    # Print the complexity measures
+    print(complexity_measures_df)
 
 if __name__ == '__main__':
     main()
