@@ -8,10 +8,7 @@ import pandas as pd
 from data_generators.difficulty_generator import DifficultyGenerator
 from poisoners.alfa_poisoner import alfa_poison
 from utils.test_train_split import test_train_split
-<<<<<<< HEAD
 from meta_database.extract_complexity_measures import extract_complexity_measures
-=======
->>>>>>> 0afc812 (memento with poison)
 from memento import Config, Context, Memento
 
 def poison_experiment(context: Context, config: Config):
