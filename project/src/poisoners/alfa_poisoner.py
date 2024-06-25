@@ -13,7 +13,7 @@ from sklearn.svm import SVC
 from scipy.stats import loguniform
 
 
-from utils import alfa
+from utils.alfa import alfa
 from utils.utils import (create_dir, open_csv, open_json, to_csv,
                                       to_json, transform_label)
 
@@ -63,7 +63,6 @@ def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_ou
                 time_elapse = time.time() - time_start
                 print('Generating {:.0f}% poison labels took {:.1f}s'.format(p * 100, time_elapse))
                 to_csv(X_train, y_flip, cols, path_poison_data)
-
             svm_params = clf.get_params()
             clf_poison = SVC(**svm_params)
             clf_poison.fit(X_train, y_flip)
@@ -144,4 +143,7 @@ def alfa_poison(dataset, advx_range, path_output):
         'Test.Poison': acc_test_poison,
     }
     df = pd.DataFrame(data)
-    df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
+    if os.path.exists(os.path.join(path_output, 'synth_alfa_svm_score.csv')):
+        df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), mode='a', header=False, index=False)
+    else:
+        df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
