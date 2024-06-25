@@ -12,7 +12,6 @@ from meta_database.extract_complexity_measures import extract_complexity_measure
 from memento import Config, Context, Memento
 
 def poison_experiment(context: Context, config: Config):
-
     # Grab values from matrix
     data = config.data
     output = config.output
