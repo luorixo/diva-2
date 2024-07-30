@@ -31,4 +31,5 @@ def extract_complexity_measures(input_path):
 
     # Convert results to DataFrame
     results_df = pd.DataFrame(results)
+    print(results_df)
     return results_df

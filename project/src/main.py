@@ -28,7 +28,7 @@ def poison_experiment(context: Context, config: Config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=8, type=int,
+    parser.add_argument('-n', '--nSets', default=40, type=int,
                         help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')
@@ -40,37 +40,37 @@ def main():
                         help='End of interval for poisoning rates. Default=0.41')
     args = parser.parse_args()
 
-    # Generate synthetic datasets
-    generator = DifficultyGenerator(args.nSets, args.folder)
-    generator.synth_data_grid()
+#     # Generate synthetic datasets
+#     generator = DifficultyGenerator(args.nSets, args.folder)
+#     generator.synth_data_grid()
 
-    # Perform ALFA poisoning attack
-    filepath = str(Path(args.folder).absolute())
+#     # Perform ALFA poisoning attack
+#     filepath = str(Path(args.folder).absolute())
     output = str(Path(args.output).absolute())
 
-    data_path = os.path.join(filepath, 'data')
-    split_path = os.path.join(filepath, 'split')
-    test_train_split(data_path, split_path, 0.2)
+#     data_path = os.path.join(filepath, 'data')
+#     split_path = os.path.join(filepath, 'split')
+#     test_train_split(data_path, split_path, 0.2)
 
-    train_list = sorted(glob.glob(os.path.join(split_path, 'train', '*.csv')))
-    test_list = sorted(glob.glob(os.path.join(split_path, 'test', '*.csv')))
-    assert len(train_list) == len(test_list)
+#     train_list = sorted(glob.glob(os.path.join(split_path, 'train', '*.csv')))
+#     test_list = sorted(glob.glob(os.path.join(split_path, 'test', '*.csv')))
+#     assert len(train_list) == len(test_list)
 
-    print('Found {} datasets'.format(len(train_list)))
+#     print('Found {} datasets'.format(len(train_list)))
 
-    data = list(zip(train_list, test_list))
+#     data = list(zip(train_list, test_list))
 
-    matrix_poison = {
-        "parameters": {
-            "data": data,
-            "output": [output],
-            "poison_method": [alfa_poison],
-            "poison_max": [args.max],
-            "poison_step": [args.step]
-        },
-    }
+#     matrix_poison = {
+#         "parameters": {
+#             "data": data,
+#             "output": [output],
+#             "poison_method": [alfa_poison],
+#             "poison_max": [args.max],
+#             "poison_step": [args.step]
+#         },
+#     }
 
-    Memento(poison_experiment).run(matrix_poison)
+#     Memento(poison_experiment).run(matrix_poison)
 
     # Extract complexity measures from poisoned datasets
     # directory hard coded for now

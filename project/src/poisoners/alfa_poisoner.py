@@ -28,14 +28,14 @@ SVM_PARAM_DICT = {
     'kernel': ['rbf'],
 }
 
-def get_y_flip(X_train, y_train, p, svc):
-    if p == 0:
+def get_y_flip(X_train, y_train, rate, svc):
+    if rate == 0:
         return y_train
 
     # Transform labels from {0, 1} to {-1, 1}
     y_train = transform_label(y_train, target=-1)
     y_flip = alfa(X_train, y_train,
-                  budget=p,
+                  rate,
                   svc_params=svc.get_params(),
                   max_iter=ALFA_MAX_ITER)
     # Transform label back to {0, 1}
@@ -52,16 +52,16 @@ def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_ou
     accuracy_test_poison = []
     path_poison_data_list = []
 
-    for p in advx_range:
-        path_poison_data = '{}_alfa_svm_{:.2f}.csv'.format(path_output_base, np.round(p, 2))
+    for rate in advx_range:
+        path_poison_data = '{}_alfa_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
         try:
             if os.path.exists(path_poison_data):
                 X_train, y_flip, _ = open_csv(path_poison_data)
             else:
                 time_start = time.time()
-                y_flip = get_y_flip(X_train, y_train, p, clf)
+                y_flip = get_y_flip(X_train, y_train, rate, clf)
                 time_elapse = time.time() - time_start
-                print('Generating {:.0f}% poison labels took {:.1f}s'.format(p * 100, time_elapse))
+                print('Generating {:.0f}% poison labels took {:.1f}s'.format(rate * 100, time_elapse))
                 to_csv(X_train, y_flip, cols, path_poison_data)
             svm_params = clf.get_params()
             clf_poison = SVC(**svm_params)
@@ -72,7 +72,7 @@ def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_ou
             print(e)
             acc_train_poison = 0
             acc_test_poison = 0
-        print('P-Rate [{:.2f}] Acc  P-train: {:.2f} C-test: {:.2f}'.format(p * 100, acc_train_poison * 100, acc_test_poison * 100))
+        print('P-Rate [{:.2f}] Acc  P-train: {:.2f} C-test: {:.2f}'.format(rate * 100, acc_train_poison * 100, acc_test_poison * 100))
         path_poison_data_list.append(path_poison_data)
         accuracy_train_poison.append(acc_train_poison)
         accuracy_test_poison.append(acc_test_poison)

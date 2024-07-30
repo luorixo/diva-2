@@ -2,9 +2,9 @@ import pandas as pd
 import os
 
 def extract_key(filename):
-    parts = filename.split('_')
+    parts = filename.split('\\')
     # check first 8 parts of name are same
-    return '_'.join(parts[:8])
+    return parts[-1]
 
 def make_metadb(csv_path, cmeasure_dataframe, output_path):
     # Check if the CSV file exists
@@ -16,14 +16,14 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
     csv_data = pd.read_csv(csv_path)
     
     # Extract the key from the 'file' column in the DataFrame for matching
-    cmeasure_dataframe['key'] = cmeasure_dataframe['file'].apply(extract_key)
+    csv_data['key'] = csv_data['Path.Poison'].apply(extract_key)
 
     # Log data to debug
-    print("CSV Data 'Data' column:", csv_data['Data'].head())
-    print("DataFrame 'key' column:", cmeasure_dataframe['key'].head())
+    print("CSV Data 'Data' column:", csv_data['key'].head())
+    print("DataFrame 'key' column:", cmeasure_dataframe['file'].head())
 
     # Merge the two datasets on the extracted key
-    merged_data = pd.merge(csv_data, cmeasure_dataframe, left_on='Data', right_on='key', how='inner')
+    merged_data = pd.merge(csv_data, cmeasure_dataframe, left_on='key', right_on='file', how='inner')
 
     if merged_data.empty:
         print("No matching data found for merging. Check the 'Data' and 'file' columns.")
