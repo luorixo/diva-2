@@ -9,6 +9,24 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+def log_cols(path_data):
+    """Read data from a CSV file, output the column names"""
+    logger.info('Load from:', path_data)
+    df_data = pd.read_csv(path_data)
+    cols = df_data.columns.tolist()
+
+    for i, v in enumerate(cols):
+        print(f"Column {i}: {v}")
+
+def drop_cols(path_data, indices_to_drop):
+    """Read data from a CSV file, drops columns by index, output the column names"""
+    logger.info('Load from:', path_data)
+    df_data = pd.read_csv(path_data)
+    cols = df_data.columns.tolist()
+    cols_to_drop = [cols[i] for i in indices_to_drop]
+    df_data.drop(cols_to_drop, inplace=True, axis=1)
+    return df_data
+
 
 def time2str(time_elapsed):
     return time.strftime("%Hh%Mm%Ss", time.gmtime(time_elapsed))
