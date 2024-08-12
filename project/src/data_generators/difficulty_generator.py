@@ -14,7 +14,7 @@ class DifficultyGenerator:
     def __init__(self, n_sets, folder):
         self.n_sets = n_sets
         self.folder = folder
-        self.N_SAMPLES = np.arange(1000, 2001, 200)
+        self.N_SAMPLES = np.arange(1000, 3001, 200)
         self.N_CLASSES = 2  # Number of classes
         self.N_DIFFICULTY = 3
         self.DIFFICULTY_RANGE = [0.7, 0.9]

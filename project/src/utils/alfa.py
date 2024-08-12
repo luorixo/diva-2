@@ -4,10 +4,10 @@ from sklearn.svm import SVC
 from tqdm import tqdm
 
 
-def get_flip_labels(y, q, C):
+def get_flip_labels(y, q, rate):
     n = len(y)
-    C = int(np.floor(n * C))
-    idx_flip = np.argsort(q[n:])[::-1][:C]
+    rate = int(np.floor(n * rate))
+    idx_flip = np.argsort(q[n:])[::-1][:rate]
     y_flip = y.copy()
     y_flip[idx_flip] = -y_flip[idx_flip]
     return y_flip
@@ -47,12 +47,12 @@ def solveLP(eps, psi, C):
     return q, result.message
 
 
-def solveQP(q, U_X, U_y, C, svc_params):
+def solveQP(q, U_X, U_y, rate, svc_params):
     n2 = len(U_y)
     n = int(n2 / 2)
     eps = np.zeros(n2)
     X_train = U_X[:n]
-    y_adv = get_flip_labels(U_y[:n], q, C)
+    y_adv = get_flip_labels(U_y[:n], q, rate)
 
     clf = SVC(**svc_params)
     clf.fit(X_train, y_adv)
@@ -62,7 +62,7 @@ def solveQP(q, U_X, U_y, C, svc_params):
     return eps
 
 
-def alfa(X_train, y_train, budget, svc_params, max_iter=5):
+def alfa(X_train, y_train, rate, svc_params, max_iter=5):
     clf = SVC(**svc_params)
     clf.fit(X_train, y_train)
 
@@ -77,9 +77,9 @@ def alfa(X_train, y_train, budget, svc_params, max_iter=5):
 
     pbar = tqdm(range(max_iter), ncols=100)
     for _ in pbar:
-        q, msg = solveLP(eps, psi, C=budget)
+        q, msg = solveLP(eps, psi, rate)
         pbar.set_postfix({'Optimizer': msg})
-        eps = solveQP(q, U_X, U_y, C=budget, svc_params=svc_params)
+        eps = solveQP(q, U_X, U_y, rate, svc_params=svc_params)
 
-    y_flip = get_flip_labels(y_train, q, budget)
+    y_flip = get_flip_labels(y_train, q, rate)
     return y_flip
