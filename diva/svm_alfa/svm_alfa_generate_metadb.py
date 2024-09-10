@@ -262,18 +262,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--nSets', default=2, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
-    # parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
-    parser.add_argument('-s', '--step', type=float, default=0.1, help='Spacing between values for poisoning rates. Default=0.05')
-    # parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
-    parser.add_argument('-m', '--max', type=float, default=0.21, help='End of interval for poisoning rates. Default=0.41')
+    parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
+    parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
     args = parser.parse_args()
 
-    # # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
-    # generated_files = generate_synthetic_data(args.nSets, args.folder)
+    # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
+    generated_files = generate_synthetic_data(args.nSets, args.folder)
 
-    # # Step 2: Apply ALFA poisoning on the generated datasets
-    # advx_range = np.arange(0, args.max, args.step)
-    # alfa_poison(generated_files, advx_range, 'poisoned_data')
+    # Step 2: Apply ALFA poisoning on the generated datasets
+    advx_range = np.arange(0, args.max, args.step)
+    alfa_poison(generated_files, advx_range, 'poisoned_data')
 
     # Step 3: Compute complexity measures from clean/poisoned files
     complexity_measures_df = extract_complexity_measures('poisoned_data/alfa_svm')
