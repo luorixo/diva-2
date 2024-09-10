@@ -5,6 +5,7 @@ import time
 import warnings
 from pathlib import Path
 
+from pymfe.mfe import MFE
 import numpy as np
 import pandas as pd
 from sklearn.datasets import make_classification
@@ -92,6 +93,7 @@ def generate_synthetic_data(n_sets, folder):
     
     return generated_files  # Return the list of generated files for further processing
 
+# POISON DATASETS WITH ALFA (ADVERSARIAL LABEL FLIPPING ATTACK)
 def get_y_flip(X_train, y_train, rate, svc):
     if rate == 0:
         return y_train
@@ -176,6 +178,7 @@ def alfa_poison(file_paths, advx_range, path_output):
         # Save results
         data = {
             'Data': np.tile(dataname, reps=len(advx_range)),
+            'Path.Poison': path_poison_data_list,
             'Rate': advx_range,
             'Train.Clean': acc_train_clean,
             'Test.Clean': acc_test_clean,
@@ -188,18 +191,94 @@ def alfa_poison(file_paths, advx_range, path_output):
         else:
             df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
 
+# EXTRACT COMPLEXITY MEASURES FROM CLEAN/POISONED DATASETS
+def extract_complexity_measures(input_path):
+    # Find all poisoned datasets
+    poisoned_files = glob.glob(os.path.join(input_path, '*.csv'))
+
+    results = []
+    for file in poisoned_files:
+        print(f'Computing c-measures for: {file}...')
+        # Load the poisoned dataset
+        data = pd.read_csv(file)
+        X = data.iloc[:, :-1].values
+        y = data.iloc[:, -1].values
+
+        # Initialize MFE (meta feature extractor) with complexity measures
+        mfe = MFE(groups=["complexity"])
+
+        # Fit the MFE model to the data
+        mfe.fit(X, y)
+
+        # Extract meta-features
+        features, values = mfe.extract()
+        
+        # Collect results
+        result = {'file': os.path.basename(file)}
+        result.update(dict(zip(features, values)))
+        results.append(result)
+
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results)
+    print(results_df)
+    return results_df
+
+def extract_key(filename):
+    # Extract the part that matches the pattern in the file names
+    filename = os.path.basename(filename)  # Get the file name without the path
+    return '_'.join(filename.split('_')[:10])  # Return the core file name part
+
+def make_metadb(csv_path, cmeasure_dataframe, output_path):
+    # Check if the CSV file exists
+    if not os.path.exists(csv_path):
+        print(f"No CSV found at {csv_path}. Creating a new CSV at {output_path}.")
+        cmeasure_dataframe.to_csv(csv_path, index=False)
+        return
+
+    # Read the CSV file
+    csv_data = pd.read_csv(csv_path)
+    
+    # Extract the key from the 'Path.Poison' column for matching
+    csv_data['key'] = csv_data['Path.Poison'].apply(extract_key)
+
+    # Adjust the 'file' column in cmeasure_dataframe to match the format of 'key'
+    cmeasure_dataframe['key'] = cmeasure_dataframe['file'].apply(extract_key)
+
+    # Log data to debug
+    print("CSV Data 'key' column:", csv_data['key'].head())
+    print("DataFrame 'key' column:", cmeasure_dataframe['key'].head())
+
+    # Merge the two datasets on the extracted key
+    merged_data = pd.merge(csv_data, cmeasure_dataframe, on='key', how='inner')
+
+    if merged_data.empty:
+        print("No matching data found for merging. Check the 'key' and 'file' columns.")
+    
+    # Save the merged data to a new CSV file
+    merged_data.to_csv(output_path, index=False)
+    print(f"Merged data saved to {output_path}")
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--nSets', default=2, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
-    parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
-    parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
+    # parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
+    parser.add_argument('-s', '--step', type=float, default=0.1, help='Spacing between values for poisoning rates. Default=0.05')
+    # parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
+    parser.add_argument('-m', '--max', type=float, default=0.21, help='End of interval for poisoning rates. Default=0.41')
     args = parser.parse_args()
 
-    # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
-    generated_files = generate_synthetic_data(args.nSets, args.folder)
+    # # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
+    # generated_files = generate_synthetic_data(args.nSets, args.folder)
 
-    # Step 3: Apply ALFA poisoning on the generated datasets
-    advx_range = np.arange(0, args.max, args.step)
-    alfa_poison(generated_files, advx_range, 'poisoned_data')
-    
+    # # Step 2: Apply ALFA poisoning on the generated datasets
+    # advx_range = np.arange(0, args.max, args.step)
+    # alfa_poison(generated_files, advx_range, 'poisoned_data')
+
+    # Step 3: Compute complexity measures from clean/poisoned files
+    complexity_measures_df = extract_complexity_measures('poisoned_data/alfa_svm')
+    print(complexity_measures_df)
+
+    # Step 4: Make meta database from information gathered
+    csv_path = 'poisoned_data/synth_alfa_svm_score.csv'
+    make_metadb(csv_path, complexity_measures_df, 'meta_database_alfa_svm.csv')
