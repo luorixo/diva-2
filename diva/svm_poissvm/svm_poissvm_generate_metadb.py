@@ -29,7 +29,7 @@ from sklearn.svm import SVC
 np.random.seed(301)
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(100, 300, 200)
+    N_SAMPLES = np.arange(1000, 3001, 200)
     N_CLASSES = 2 
 
     data_path = os.path.join('clean_data', folder)
@@ -245,7 +245,7 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=1, type=int,
+    parser.add_argument('-n', '--nSets', default=1000, type=int,
                         help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')

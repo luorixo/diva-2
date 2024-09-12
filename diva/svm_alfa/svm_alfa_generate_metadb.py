@@ -260,7 +260,7 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=2, type=int, help='# of random generated synthetic data sets.')
+    parser.add_argument('-n', '--nSets', default=1000, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
     parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
     parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
