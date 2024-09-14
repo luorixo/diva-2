@@ -179,7 +179,7 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
     # Check if the labels are one-hot encoded
     if len(train_labels.shape) == 1:
         # If labels are in integer format, one-hot encode them
-        encoder = OneHotEncoder(sparse=False)
+        encoder = OneHotEncoder(sparse_output=False)
         train_labels = encoder.fit_transform(train_labels.reshape(-1, 1))
         test_labels = encoder.fit_transform(test_labels.reshape(-1, 1))
 
