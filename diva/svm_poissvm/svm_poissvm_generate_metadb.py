@@ -29,7 +29,7 @@ from sklearn.svm import SVC
 np.random.seed(301)
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(1000, 3001, 200)
+    N_SAMPLES = np.arange(100, 200, 2)
     N_CLASSES = 2 
 
     data_path = os.path.join('clean_data', folder)
