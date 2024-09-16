@@ -253,7 +253,7 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=1, type=int,
+    parser.add_argument('-n', '--nSets', default=100, type=int,
                         help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')
