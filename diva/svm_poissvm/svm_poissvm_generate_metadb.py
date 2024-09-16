@@ -29,7 +29,7 @@ from sklearn.svm import SVC
 np.random.seed(301)
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(100, 200, 2)
+    N_SAMPLES = np.arange(100, 200, 200)
     N_CLASSES = 2 
 
     data_path = os.path.join('clean_data', folder)
@@ -171,7 +171,6 @@ def open_csv(path_data, label_name='y'):
     cols = df_data.columns
     X = df_data.to_numpy()
     return X, y, cols
-
 def poison_and_extract(train_data, test_data, train_labels, test_labels):
     # Define the kernel type
     kernel = 'linear'  # One of ['linear', 'poly', 'rbf']
@@ -179,9 +178,12 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
     # Check if the labels are one-hot encoded
     if len(train_labels.shape) == 1:
         # If labels are in integer format, one-hot encode them
-        encoder = OneHotEncoder(sparse_output=False)
-        train_labels = encoder.fit_transform(train_labels.reshape(-1, 1))
-        test_labels = encoder.fit_transform(test_labels.reshape(-1, 1))
+        encoder = OneHotEncoder(sparse_output=True)  # Using dense output for compatibility
+        train_labels = encoder.fit_transform(train_labels.reshape(-1, 1))  # Fit on training data
+        test_labels = encoder.transform(test_labels.reshape(-1, 1))  # Transform test data using the same encoder
+
+    train_labels = train_labels.toarray()  # Convert sparse matrix to dense
+    test_labels = test_labels.toarray()    # Convert sparse matrix to dense
 
     # Train the clean model without poisoning
     clean_model = SVC(kernel=kernel)
@@ -190,9 +192,12 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
     # Fit the model with the properly encoded labels
     art_clean.fit(x=train_data, y=train_labels)
 
-    # Calculate accuracies for the clean model (same for all poisoning rates)
-    clean_acc_train = np.average(np.all(art_clean.predict(train_data) == train_labels, axis=1))
-    clean_acc_test = np.average(np.all(art_clean.predict(test_data) == test_labels, axis=1))
+    # Calculate accuracies for the clean model (apply argmax to convert to class labels)
+    train_pred = np.argmax(art_clean.predict(train_data), axis=1)
+    test_pred = np.argmax(art_clean.predict(test_data), axis=1)
+    
+    clean_acc_train = np.mean(train_pred == np.argmax(train_labels, axis=1))  # Use argmax to get actual labels
+    clean_acc_test = np.mean(test_pred == np.argmax(test_labels, axis=1))
 
     # Flatten the clean labels for complexity measure extraction (but not for model training)
     train_labels_flat = train_labels.argmax(axis=1)
@@ -228,9 +233,12 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
             # Re-train the model with poisoned data (not flattening the labels)
             art_poisoned.fit(x=poisoned_train_data, y=poisoned_train_labels)
 
-            # Calculate accuracies for the poisoned model
-            poison_acc_train = np.average(np.all(art_poisoned.predict(train_data) == train_labels, axis=1))
-            poison_acc_test = np.average(np.all(art_poisoned.predict(test_data) == test_labels, axis=1))
+            # Calculate accuracies for the poisoned model (use argmax to compare integer labels)
+            poison_train_pred = np.argmax(art_poisoned.predict(train_data), axis=1)
+            poison_test_pred = np.argmax(art_poisoned.predict(test_data), axis=1)
+
+            poison_acc_train = np.mean(poison_train_pred == np.argmax(train_labels, axis=1))
+            poison_acc_test = np.mean(poison_test_pred == np.argmax(test_labels, axis=1))
 
         # Assuming train_data and train_labels are your datasets
         dataset_name = 'synth'  # Replace with the actual dataset name
@@ -245,7 +253,7 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=100, type=int,
+    parser.add_argument('-n', '--nSets', default=1, type=int,
                         help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='', type=str,
                         help='The output folder.')
