@@ -29,7 +29,7 @@ from sklearn.svm import SVC
 np.random.seed(301)
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(100, 200, 200)
+    N_SAMPLES = np.arange(400, 800, 200)
     N_CLASSES = 2 
 
     data_path = os.path.join('clean_data', folder)
@@ -171,7 +171,8 @@ def open_csv(path_data, label_name='y'):
     cols = df_data.columns
     X = df_data.to_numpy()
     return X, y, cols
-def poison_and_extract(train_data, test_data, train_labels, test_labels):
+
+def poison_and_extract(train_data, test_data, train_labels, test_labels, filename):
     # Define the kernel type
     kernel = 'linear'  # One of ['linear', 'poly', 'rbf']
 
@@ -241,7 +242,7 @@ def poison_and_extract(train_data, test_data, train_labels, test_labels):
             poison_acc_test = np.mean(poison_test_pred == np.argmax(test_labels, axis=1))
 
         # Assuming train_data and train_labels are your datasets
-        dataset_name = 'synth'  # Replace with the actual dataset name
+        dataset_name =  filename # Replace with the actual dataset name
         poisoning_type = 'PoisSVM'  # The type of poisoning attack
         output_csv_path = 'metadata.csv'  # The path to your existing CSV file
 
@@ -270,7 +271,7 @@ def main():
     for file in generated_files:
         x, y, col = open_csv(file)
         X_train, X_test, y_train, y_test = train_test_split(x, y)
-        poison_and_extract(X_train, X_test, y_train, y_test)
+        poison_and_extract(X_train, X_test, y_train, y_test, file)
         
 if __name__ == '__main__':
     main()
