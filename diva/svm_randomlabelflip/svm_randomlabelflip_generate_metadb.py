@@ -111,7 +111,7 @@ def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_ou
     path_poison_data_list = []
 
     for rate in flip_rate_range:
-        path_poison_data = '{}_random_flip_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
+        path_poison_data = '{}_randomlabelflip_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
         try:
             if os.path.exists(path_poison_data):
                 X_train, y_flip, _ = open_csv(path_poison_data)
@@ -127,7 +127,7 @@ def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_ou
             print(e)
             acc_train_poison = 0
             acc_test_poison = 0
-        print('Flip Rate [{:.2f}]% - Acc  Poisoned Train: {:.2f}%  Clean Test: {:.2f}%'.format(rate * 100, acc_train_poison * 100, acc_test_poison * 100))
+        print('Flip Rate [{:.2f}]% - Acc  Poisoned Train: {:.2f}%  Test Set: {:.2f}%'.format(rate * 100, acc_train_poison * 100, acc_test_poison * 100))
         path_poison_data_list.append(path_poison_data)
         accuracy_train_poison.append(acc_train_poison)
         accuracy_test_poison.append(acc_test_poison)
@@ -255,7 +255,7 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=3, type=int, help='# of random generated synthetic data sets.')
+    parser.add_argument('-n', '--nSets', default=10, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
     parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for flipping rates. Default=0.05')
     parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for flipping rates. Default=0.41')

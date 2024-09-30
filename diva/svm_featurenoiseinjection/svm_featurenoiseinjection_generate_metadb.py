@@ -92,7 +92,7 @@ def generate_synthetic_data(n_sets, folder):
     return generated_files  # Return the list of generated files for further processing
 
 # POISON DATASETS WITH FEATURE NOISE INJECTION
-def inject_feature_noise(X_train, rate, noise_level=1.0):
+def inject_feature_noise(X_train, rate, noise_level=3.0):
     X_noisy = X_train.copy()
     n_noisy = int(len(X_train) * rate)
     noisy_indices = np.random.choice(len(X_train), size=n_noisy, replace=False)
@@ -113,7 +113,7 @@ def compute_and_save_noisy_data(X_train, y_train, X_test, y_test, clf, path_outp
     path_noisy_data_list = []
 
     for rate in noise_rate_range:
-        path_noisy_data = '{}_feature_noise_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
+        path_noisy_data = '{}_featurenoiseinjection_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
         try:
             if os.path.exists(path_noisy_data):
                 X_train_noisy, y_train_noisy, _ = open_csv(path_noisy_data)
