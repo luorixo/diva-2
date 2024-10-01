@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from scipy.stats import loguniform
 
-from utils.utils import create_dir, open_csv, to_csv
+from .utils.utils import create_dir, open_csv, to_csv
 
 # Ignore warnings from optimization.
 warnings.filterwarnings('ignore')
@@ -91,57 +91,60 @@ def generate_synthetic_data(n_sets, folder):
 
     return generated_files  # Return the list of generated files for further processing
 
-# POISON DATASETS WITH RANDOM LABEL FLIPPING
-def random_label_flip(y_train, rate):
-    y_flip = y_train.copy()
-    n_flip = int(len(y_train) * rate)
-    flip_indices = np.random.choice(len(y_train), size=n_flip, replace=False)
-    # Assuming binary classification with labels 0 and 1
-    y_flip[flip_indices] = 1 - y_flip[flip_indices]
-    return y_flip
+# POISON DATASETS WITH FEATURE NOISE INJECTION
+def inject_feature_noise(X_train, rate, noise_level=3.0):
+    X_noisy = X_train.copy()
+    n_noisy = int(len(X_train) * rate)
+    noisy_indices = np.random.choice(len(X_train), size=n_noisy, replace=False)
+    # Generate noise for the selected samples
+    noise = np.random.normal(0, noise_level, size=X_train.shape)
+    # Add noise only to the selected samples
+    X_noisy[noisy_indices] += noise[noisy_indices]
+    return X_noisy
 
-def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_output_base, cols, flip_rate_range):
+def compute_and_save_noisy_data(X_train, y_train, X_test, y_test, clf, path_output_base, cols, noise_rate_range):
     acc_train_clean = clf.score(X_train, y_train)
     acc_test_clean = clf.score(X_test, y_test)
 
-    accuracy_train_clean = [acc_train_clean] * len(flip_rate_range)
-    accuracy_test_clean = [acc_test_clean] * len(flip_rate_range)
-    accuracy_train_poison = []
-    accuracy_test_poison = []
-    path_poison_data_list = []
+    accuracy_train_clean = [acc_train_clean] * len(noise_rate_range)
+    accuracy_test_clean = [acc_test_clean] * len(noise_rate_range)
+    accuracy_train_noisy = []
+    accuracy_test_noisy = []
+    path_noisy_data_list = []
 
-    for rate in flip_rate_range:
-        path_poison_data = '{}_randomlabelflip_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
+    for rate in noise_rate_range:
+        path_noisy_data = '{}_featurenoiseinjection_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
         try:
-            if os.path.exists(path_poison_data):
-                X_train, y_flip, _ = open_csv(path_poison_data)
+            if os.path.exists(path_noisy_data):
+                X_train_noisy, y_train_noisy, _ = open_csv(path_noisy_data)
             else:
-                y_flip = random_label_flip(y_train, rate)
-                to_csv(X_train, y_flip, cols, path_poison_data)
+                X_train_noisy = inject_feature_noise(X_train, rate)
+                y_train_noisy = y_train.copy()
+                to_csv(X_train_noisy, y_train_noisy, cols, path_noisy_data)
             svm_params = clf.get_params()
-            clf_poison = SVC(**svm_params)
-            clf_poison.fit(X_train, y_flip)
-            acc_train_poison = clf_poison.score(X_train, y_flip)
-            acc_test_poison = clf_poison.score(X_test, y_test)
+            clf_noisy = SVC(**svm_params)
+            clf_noisy.fit(X_train_noisy, y_train_noisy)
+            acc_train_noisy = clf_noisy.score(X_train_noisy, y_train_noisy)
+            acc_test_noisy = clf_noisy.score(X_test, y_test)
         except Exception as e:
             print(e)
-            acc_train_poison = 0
-            acc_test_poison = 0
-        print('Flip Rate [{:.2f}]% - Acc  Poisoned Train: {:.2f}%  Test Set: {:.2f}%'.format(rate * 100, acc_train_poison * 100, acc_test_poison * 100))
-        path_poison_data_list.append(path_poison_data)
-        accuracy_train_poison.append(acc_train_poison)
-        accuracy_test_poison.append(acc_test_poison)
+            acc_train_noisy = 0
+            acc_test_noisy = 0
+        print('Noise Rate [{:.2f}%] - Acc  Noisy Train: {:.2f}%  Test Set: {:.2f}%'.format(rate * 100, acc_train_noisy * 100, acc_test_noisy * 100))
+        path_noisy_data_list.append(path_noisy_data)
+        accuracy_train_noisy.append(acc_train_noisy)
+        accuracy_test_noisy.append(acc_test_noisy)
 
-    return (accuracy_train_clean, accuracy_test_clean, accuracy_train_poison, accuracy_test_poison, path_poison_data_list)
+    return (accuracy_train_clean, accuracy_test_clean, accuracy_train_noisy, accuracy_test_noisy, path_noisy_data_list)
 
-def random_flip_poison(file_paths, flip_rate_range, path_output):
+def feature_noise_poison(file_paths, noise_rate_range, path_output):
     for file_path in file_paths:
         # Load data
         X_train, y_train, cols = open_csv(file_path)
         X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2)
 
         dataname = Path(file_path).stem
-        create_dir(os.path.join(path_output, 'random_flip_svm'))
+        create_dir(os.path.join(path_output, 'feature_noise_svm'))
 
         # Tune parameters
         clf = SVC()
@@ -159,28 +162,28 @@ def random_flip_poison(file_paths, flip_rate_range, path_output):
         clf = SVC(**best_params)
         clf.fit(X_train, y_train)
 
-        # Generate poisoned labels
-        acc_train_clean, acc_test_clean, acc_train_poison, acc_test_poison, path_poison_data_list = compute_and_save_flipped_data(
+        # Generate noisy data and evaluate
+        acc_train_clean, acc_test_clean, acc_train_noisy, acc_test_noisy, path_noisy_data_list = compute_and_save_noisy_data(
             X_train, y_train,
             X_test, y_test,
             clf,
-            os.path.join(path_output, 'random_flip_svm', dataname),
+            os.path.join(path_output, 'feature_noise_svm', dataname),
             cols,
-            flip_rate_range,
+            noise_rate_range,
         )
 
         # Save results
         data = {
-            'Data': np.tile(dataname, reps=len(flip_rate_range)),
-            'Path.Poison': path_poison_data_list,
-            'Rate': flip_rate_range,
+            'Data': np.tile(dataname, reps=len(noise_rate_range)),
+            'Path.Poison': path_noisy_data_list,
+            'Rate': noise_rate_range,
             'Train.Clean': acc_train_clean,
             'Test.Clean': acc_test_clean,
-            'Train.Poison': acc_train_poison,
-            'Test.Poison': acc_test_poison,
+            'Train.Poison': acc_train_noisy,
+            'Test.Poison': acc_test_noisy,
         }
         df = pd.DataFrame(data)
-        csv_output_path = os.path.join(path_output, 'synth_random_flip_svm_score.csv')
+        csv_output_path = os.path.join(path_output, 'synth_feature_noise_svm_score.csv')
         if os.path.exists(csv_output_path):
             df.to_csv(csv_output_path, mode='a', header=False, index=False)
         else:
@@ -255,23 +258,23 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=10, type=int, help='# of random generated synthetic data sets.')
+    parser.add_argument('-n', '--nSets', default=1, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
-    parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for flipping rates. Default=0.05')
-    parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for flipping rates. Default=0.41')
+    parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for noise rates. Default=0.05')
+    parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for noise rates. Default=0.41')
     args = parser.parse_args()
 
     # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
     generated_files = generate_synthetic_data(args.nSets, args.folder)
 
-    # Step 2: Apply Random Label Flipping on the generated datasets
-    flip_rate_range = np.arange(0, args.max, args.step)
-    random_flip_poison(generated_files, flip_rate_range, 'poisoned_data')
+    # Step 2: Apply Feature Noise Injection on the generated datasets
+    noise_rate_range = np.arange(0, args.max, args.step)
+    feature_noise_poison(generated_files, noise_rate_range, 'poisoned_data')
 
     # Step 3: Compute complexity measures from clean/poisoned files
-    complexity_measures_df = extract_complexity_measures('poisoned_data/random_flip_svm')
+    complexity_measures_df = extract_complexity_measures('poisoned_data/feature_noise_svm')
     print(complexity_measures_df)
 
     # Step 4: Make meta database from information gathered
-    csv_path = 'poisoned_data/synth_random_flip_svm_score.csv'
-    make_metadb(csv_path, complexity_measures_df, 'meta_database_random_flip_svm.csv')
+    csv_path = 'poisoned_data/synth_feature_noise_svm_score.csv'
+    make_metadb(csv_path, complexity_measures_df, 'meta_database_feature_noise_svm.csv')

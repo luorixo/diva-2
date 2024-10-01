@@ -20,8 +20,8 @@ N_NEIGHBORS = 5
 MAX_ITERATIONS = 100
 EPSILON = 1e-6  # Reduced for finer perturbations
 STEP_SIZE = 0.1   # Increased step size
-MIN_SAMPLES = 1000
-MAX_SAMPLES = 2000
+MIN_SAMPLES = 500
+MAX_SAMPLES = 600
 
 def generate_synthetic_data(n_sets, folder):
     N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 200)
@@ -227,6 +227,8 @@ def perform_multiple_poisoning_attacks(X_train, y_train, X_val, y_val, num_attac
             epsilon=epsilon
         )
         history_total.extend(history)
+
+        print(f'{attack_num}/{num_attack_points}')
         
         # Update the training data with the attacked point
         X_train = np.vstack([X_train, x_c_attacked])
@@ -341,7 +343,7 @@ def main():
     csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
 
     # Define attack percentages from 0% to 40% in increments of 5%
-    attack_percentages = np.arange(0, 0.41, 0.05)  # 0.0, 0.05, ..., 0.40
+    attack_percentages = np.arange(0, 0.41, 0.40)  # 0.0, 0.05, ..., 0.40
 
     for file in files:
         X, y, _, _ = load_and_preprocess_data(file)
