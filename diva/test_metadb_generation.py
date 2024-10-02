@@ -12,12 +12,13 @@ from sklearn.datasets import make_classification
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import ParameterGrid
 
+from scripts.svm_poissvm.svm_poissvm_generate_metadb import poissvm_poison
 from scripts.svm_featurenoiseinjection.svm_featurenoiseinjection_generate_metadb import feature_noise_poison
 from scripts.svm_randomlabelflip.svm_randomlabelflip_generate_metadb import random_flip_poison
 from scripts.svm_alfa.svm_alfa_generate_metadb import alfa_poison
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(100, 201, 200)
+    N_SAMPLES = np.arange(1000, 2001, 200)
     N_CLASSES = 2  # Number of classes
 
     # Create directory
@@ -148,30 +149,36 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=1, type=int, help='# of random generated synthetic data sets.')
+    parser.add_argument('-n', '--nSets', default=10, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
     parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
     parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
     args = parser.parse_args()
-    
+
     poisoning_methods = {
-        "alfa_svm": {
-            "poison_function": alfa_poison,
-            "complexity_dir": 'poisoned_data/alfa_svm',
-            "csv_score": 'poisoned_data/synth_alfa_svm_score.csv',
-            "meta_db": 'meta_database_alfa_svm.csv'
-        },
-        "feature_noise_svm": {
-            "poison_function": feature_noise_poison,
-            "complexity_dir": 'poisoned_data/feature_noise_svm',
-            "csv_score": 'poisoned_data/synth_feature_noise_svm_score.csv',
-            "meta_db": 'meta_database_feature_noise_svm.csv'
-        },
-        "random_flip_svm": {
-            "poison_function": random_flip_poison,
-            "complexity_dir": 'poisoned_data/random_flip_svm',
-            "csv_score": 'poisoned_data/synth_random_flip_svm_score.csv',
-            "meta_db": 'meta_database_random_flip_svm.csv'
+        # "alfa_svm": {
+        #     "poison_function": alfa_poison,
+        #     "complexity_dir": 'poisoned_data/alfa_svm',
+        #     "csv_score": 'poisoned_data/synth_alfa_svm_score.csv',
+        #     "meta_db": 'meta_database_alfa_svm.csv'
+        # },
+        # "feature_noise_svm": {
+        #     "poison_function": feature_noise_poison,
+        #     "complexity_dir": 'poisoned_data/feature_noise_svm',
+        #     "csv_score": 'poisoned_data/synth_feature_noise_svm_score.csv',
+        #     "meta_db": 'meta_database_feature_noise_svm.csv'
+        # },
+        # "random_flip_svm": {
+        #     "poison_function": random_flip_poison,
+        #     "complexity_dir": 'poisoned_data/random_flip_svm',
+        #     "csv_score": 'poisoned_data/synth_random_flip_svm_score.csv',
+        #     "meta_db": 'meta_database_random_flip_svm.csv'
+        # },
+            "poissvm": {
+            "poison_function": poissvm_poison,  # Assuming the function name is poissvm_poison
+            "complexity_dir": 'poisoned_data/poissvm',
+            "csv_score": 'poisoned_data/synth_poissvm_score.csv',
+            "meta_db": 'meta_database_poissvm_svm.csv'
         }
     }
 
