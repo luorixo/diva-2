@@ -1,36 +1,24 @@
+
+
 import argparse
 import glob
 import os
-import time
-import warnings
 from pathlib import Path
 
-from pymfe.mfe import MFE
 import numpy as np
 import pandas as pd
+from pymfe.mfe import MFE
 from sklearn.datasets import make_classification
-from sklearn.model_selection import RandomizedSearchCV, train_test_split, ParameterGrid
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from scipy.stats import loguniform
+from sklearn.discriminant_analysis import StandardScaler
+from sklearn.model_selection import ParameterGrid
 
-from utils.alfa import alfa
-from utils.utils import create_dir, open_csv, open_json, to_csv, to_json, transform_label
+from scripts.svm_poissvm.svm_poissvm_generate_metadb import poissvm_poison
+from scripts.svm_featurenoiseinjection.svm_featurenoiseinjection_generate_metadb import feature_noise_poison
+from scripts.svm_randomlabelflip.svm_randomlabelflip_generate_metadb import random_flip_poison
+from scripts.svm_alfa.svm_alfa_generate_metadb import alfa_poison
 
-# Ignore warnings from optimization.
-warnings.filterwarnings('ignore')
-
-ALFA_MAX_ITER = 5  # Number of iterations for ALFA.
-N_ITER_SEARCH = 50  # Number of iterations for SVM parameter tuning.
-SVM_PARAM_DICT = {
-    'C': loguniform(0.01, 10),
-    'gamma': loguniform(0.01, 10),
-    'kernel': ['rbf'],
-}
-
-# GENERATE SYNTHETIC DATASETS
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(1000, 3001, 200)
+    N_SAMPLES = np.arange(1000, 2001, 200)
     N_CLASSES = 2  # Number of classes
 
     # Create directory
@@ -93,105 +81,6 @@ def generate_synthetic_data(n_sets, folder):
     
     return generated_files  # Return the list of generated files for further processing
 
-# POISON DATASETS WITH ALFA (ADVERSARIAL LABEL FLIPPING ATTACK)
-def get_y_flip(X_train, y_train, rate, svc):
-    if rate == 0:
-        return y_train
-
-    y_train = transform_label(y_train, target=-1)
-    y_flip = alfa(X_train, y_train, rate, svc_params=svc.get_params(), max_iter=ALFA_MAX_ITER)
-    y_flip = transform_label(y_flip, target=0)
-    return y_flip
-
-def compute_and_save_flipped_data(X_train, y_train, X_test, y_test, clf, path_output_base, cols, advx_range):
-    acc_train_clean = clf.score(X_train, y_train)
-    acc_test_clean = clf.score(X_test, y_test)
-
-    accuracy_train_clean = [acc_train_clean] * len(advx_range)
-    accuracy_test_clean = [acc_test_clean] * len(advx_range)
-    accuracy_train_poison = []
-    accuracy_test_poison = []
-    path_poison_data_list = []
-
-    for rate in advx_range:
-        path_poison_data = '{}_alfa_svm_{:.2f}.csv'.format(path_output_base, np.round(rate, 2))
-        try:
-            if os.path.exists(path_poison_data):
-                X_train, y_flip, _ = open_csv(path_poison_data)
-            else:
-                time_start = time.time()
-                y_flip = get_y_flip(X_train, y_train, rate, clf)
-                time_elapse = time.time() - time_start
-                print('Generating {:.0f}% poison labels took {:.1f}s'.format(rate * 100, time_elapse))
-                to_csv(X_train, y_flip, cols, path_poison_data)
-            svm_params = clf.get_params()
-            clf_poison = SVC(**svm_params)
-            clf_poison.fit(X_train, y_flip)
-            acc_train_poison = clf_poison.score(X_train, y_flip)
-            acc_test_poison = clf_poison.score(X_test, y_test)
-        except Exception as e:
-            print(e)
-            acc_train_poison = 0
-            acc_test_poison = 0
-        print('P-Rate [{:.2f}] Acc  P-train: {:.2f} C-test: {:.2f}'.format(rate * 100, acc_train_poison * 100, acc_test_poison * 100))
-        path_poison_data_list.append(path_poison_data)
-        accuracy_train_poison.append(acc_train_poison)
-        accuracy_test_poison.append(acc_test_poison)
-    
-    return (accuracy_train_clean, accuracy_test_clean, accuracy_train_poison, accuracy_test_poison, path_poison_data_list)
-
-def alfa_poison(file_paths, advx_range, path_output):
-    for file_path in file_paths:
-        # Load data
-        X_train, y_train, cols = open_csv(file_path)
-        X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2)
-
-        dataname = Path(file_path).stem
-        create_dir(os.path.join(path_output, 'alfa_svm'))
-
-        # Tune parameters
-        clf = SVC()
-        random_search = RandomizedSearchCV(
-            clf,
-            param_distributions=SVM_PARAM_DICT,
-            n_iter=N_ITER_SEARCH,
-            cv=5,
-            n_jobs=-1,
-        )
-        random_search.fit(X_train, y_train)
-        best_params = random_search.best_params_
-
-        # Train model
-        clf = SVC(**best_params)
-        clf.fit(X_train, y_train)
-
-        # Generate poison labels
-        acc_train_clean, acc_test_clean, acc_train_poison, acc_test_poison, path_poison_data_list = compute_and_save_flipped_data(
-            X_train, y_train,
-            X_test, y_test,
-            clf,
-            os.path.join(path_output, 'alfa_svm', dataname),
-            cols,
-            advx_range,
-        )
-
-        # Save results
-        data = {
-            'Data': np.tile(dataname, reps=len(advx_range)),
-            'Path.Poison': path_poison_data_list,
-            'Rate': advx_range,
-            'Train.Clean': acc_train_clean,
-            'Test.Clean': acc_test_clean,
-            'Train.Poison': acc_train_poison,
-            'Test.Poison': acc_test_poison,
-        }
-        df = pd.DataFrame(data)
-        if os.path.exists(os.path.join(path_output, 'synth_alfa_svm_score.csv')):
-            df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), mode='a', header=False, index=False)
-        else:
-            df.to_csv(os.path.join(path_output, 'synth_alfa_svm_score.csv'), index=False)
-
-# EXTRACT COMPLEXITY MEASURES FROM CLEAN/POISONED DATASETS
 def extract_complexity_measures(input_path):
     # Find all poisoned datasets
     poisoned_files = glob.glob(os.path.join(input_path, '*.csv'))
@@ -260,23 +149,58 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--nSets', default=1000, type=int, help='# of random generated synthetic data sets.')
+    parser.add_argument('-n', '--nSets', default=10, type=int, help='# of random generated synthetic data sets.')
     parser.add_argument('-f', '--folder', default='synth', type=str, help='The output folder.')
     parser.add_argument('-s', '--step', type=float, default=0.05, help='Spacing between values for poisoning rates. Default=0.05')
     parser.add_argument('-m', '--max', type=float, default=0.41, help='End of interval for poisoning rates. Default=0.41')
     args = parser.parse_args()
 
+    poisoning_methods = {
+        # "alfa_svm": {
+        #     "poison_function": alfa_poison,
+        #     "complexity_dir": 'poisoned_data/alfa_svm',
+        #     "csv_score": 'poisoned_data/synth_alfa_svm_score.csv',
+        #     "meta_db": 'meta_database_alfa_svm.csv'
+        # },
+        # "feature_noise_svm": {
+        #     "poison_function": feature_noise_poison,
+        #     "complexity_dir": 'poisoned_data/feature_noise_svm',
+        #     "csv_score": 'poisoned_data/synth_feature_noise_svm_score.csv',
+        #     "meta_db": 'meta_database_feature_noise_svm.csv'
+        # },
+        # "random_flip_svm": {
+        #     "poison_function": random_flip_poison,
+        #     "complexity_dir": 'poisoned_data/random_flip_svm',
+        #     "csv_score": 'poisoned_data/synth_random_flip_svm_score.csv',
+        #     "meta_db": 'meta_database_random_flip_svm.csv'
+        # },
+            "poissvm": {
+            "poison_function": poissvm_poison,  # Assuming the function name is poissvm_poison
+            "complexity_dir": 'poisoned_data/poissvm',
+            "csv_score": 'poisoned_data/synth_poissvm_score.csv',
+            "meta_db": 'meta_database_poissvm_svm.csv'
+        }
+    }
+
     # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
     generated_files = generate_synthetic_data(args.nSets, args.folder)
 
-    # Step 2: Apply ALFA poisoning on the generated datasets
+    # Step 2: Loop through all poisoning methods
     advx_range = np.arange(0, args.max, args.step)
-    alfa_poison(generated_files, advx_range, 'poisoned_data')
 
-    # Step 3: Compute complexity measures from clean/poisoned files
-    complexity_measures_df = extract_complexity_measures('poisoned_data/alfa_svm')
-    print(complexity_measures_df)
+    for method_name, method_info in poisoning_methods.items():
+        print(f"\nProcessing poisoning method: {method_name}")
+        
+        # Apply poisoning using the corresponding function
+        method_info["poison_function"](generated_files, advx_range, 'poisoned_data')
+        
+        # Step 3: Compute complexity measures from clean/poisoned files
+        complexity_measures_df = extract_complexity_measures(method_info["complexity_dir"])
+        print(f"Complexity measures for {method_name}:")
+        print(complexity_measures_df)
 
-    # Step 4: Make meta database from information gathered
-    csv_path = 'poisoned_data/synth_alfa_svm_score.csv'
-    make_metadb(csv_path, complexity_measures_df, 'meta_database_alfa_svm.csv')
+        # Step 4: Make meta database from information gathered
+        csv_path = method_info["csv_score"]
+        make_metadb(csv_path, complexity_measures_df, method_info["meta_db"])
+
+        print(f"Finished processing {method_name}")

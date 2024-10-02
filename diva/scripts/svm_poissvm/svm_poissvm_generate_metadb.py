@@ -20,8 +20,8 @@ N_NEIGHBORS = 5
 MAX_ITERATIONS = 100
 EPSILON = 1e-6  # Reduced for finer perturbations
 STEP_SIZE = 0.1   # Increased step size
-MIN_SAMPLES = 1000
-MAX_SAMPLES = 2000
+MIN_SAMPLES = 100
+MAX_SAMPLES = 200
 
 def generate_synthetic_data(n_sets, folder):
     N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 200)
@@ -227,6 +227,8 @@ def perform_multiple_poisoning_attacks(X_train, y_train, X_val, y_val, num_attac
             epsilon=epsilon
         )
         history_total.extend(history)
+
+        print(f'{attack_num}/{num_attack_points}')
         
         # Update the training data with the attacked point
         X_train = np.vstack([X_train, x_c_attacked])
@@ -325,24 +327,17 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
     merged_data.to_csv(output_path, index=False)
     print(f"Merged data saved to {output_path}")
 
-def main():
-    num_files = 1  # Adjust the number of synthetic datasets to generate
-    files = generate_synthetic_data(num_files, folder="")
-
+def poissvm_poison(files, attack_percentages, base_output_folder):
     # Define the base output folder for saving poisoned data and CSV results
-    base_output_folder = 'poisoned_data'
     os.makedirs(base_output_folder, exist_ok=True)
+
+    # CSV to store SVM scores
+    csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
 
     # Define subfolder for numerical gradient attack
     gradient_attack_folder = os.path.join(base_output_folder, 'numerical_gradient')
     os.makedirs(gradient_attack_folder, exist_ok=True)
-
-    # CSV to store SVM scores
-    csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
-
-    # Define attack percentages from 0% to 40% in increments of 5%
-    attack_percentages = np.arange(0, 0.41, 0.05)  # 0.0, 0.05, ..., 0.40
-
+    
     for file in files:
         X, y, _, _ = load_and_preprocess_data(file)
 
@@ -439,13 +434,27 @@ def main():
             df_results.to_csv(csv_output_path, index=False)
         print(f"\nSaved SVM scores to: {csv_output_path}")
 
+def main():
+    num_files = 1  # Adjust the number of synthetic datasets to generate
+    generated_files = generate_synthetic_data(num_files, folder="")
+
+    # Define the base output folder for saving poisoned data and CSV results
+    base_output_folder = 'poisoned_data'
+    os.makedirs(base_output_folder, exist_ok=True)
+
+    # CSV to store SVM scores
+    csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
+
+    attack_percentages = np.arange(0, 0.41, 0.40) 
+    poissvm_poison(generated_files, attack_percentages, "poisoned_data")
+
     # Extract complexity measures
     print("\nExtracting complexity measures...")
-    complexity_measures_df = extract_complexity_measures(gradient_attack_folder)
+    complexity_measures_df = extract_complexity_measures("poisoned_data\\numerical_gradient")
 
     # Make meta database from information gathered
     print("\nCreating meta database...")
-    metadb_output_path = os.path.join("", 'meta_database_numerical_gradient_svm.csv')
+    metadb_output_path = os.path.join("", 'meta_database_poissvm_svm.csv')
     make_metadb(csv_output_path, complexity_measures_df, metadb_output_path)
 
 if __name__ == "__main__":

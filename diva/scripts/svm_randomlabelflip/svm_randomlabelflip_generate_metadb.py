@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from scipy.stats import loguniform
 
-from utils.utils import create_dir, open_csv, to_csv
+from .utils.utils import create_dir, open_csv, to_csv
 
 # Ignore warnings from optimization.
 warnings.filterwarnings('ignore')
