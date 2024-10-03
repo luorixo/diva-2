@@ -413,7 +413,7 @@ def main():
     os.makedirs(base_output_folder, exist_ok=True)
 
     # CSV to store SVM scores
-    csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
+    csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
 
     attack_percentages = np.arange(0, 0.41, 0.05)  # Adjust attack percentages as needed
     poissvm_poison(generated_files, attack_percentages, base_output_folder)
