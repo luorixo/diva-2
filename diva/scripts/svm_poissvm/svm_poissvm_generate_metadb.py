@@ -19,8 +19,8 @@ PCA_COMPONENTS = 10  # Adjusted to your dataset
 N_NEIGHBORS = 5
 MAX_ITERATIONS = 50
 EPSILON = 1e-6  # Reduced for finer perturbations
-MIN_SAMPLES = 1000
-MAX_SAMPLES = 1500
+MIN_SAMPLES = 500
+MAX_SAMPLES = 600
 
 def generate_synthetic_data(n_sets, folder):
     N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 20)
@@ -405,7 +405,7 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
         print(f"\nSaved SVM scores to: {csv_output_path}")
 
 def main():
-    num_files = 10  # Adjust the number of synthetic datasets to generate
+    num_files = 100  # Adjust the number of synthetic datasets to generate
     generated_files = generate_synthetic_data(num_files, folder="synthetic_data")
 
     # Define the base output folder for saving poisoned data and CSV results
@@ -415,7 +415,7 @@ def main():
     # CSV to store SVM scores
     csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
 
-    attack_percentages = np.arange(0, 0.41, 0.1)  # Adjust attack percentages as needed
+    attack_percentages = np.arange(0, 0.41, 0.05)  # Adjust attack percentages as needed
     poissvm_poison(generated_files, attack_percentages, base_output_folder)
 
     # Extract complexity measures
