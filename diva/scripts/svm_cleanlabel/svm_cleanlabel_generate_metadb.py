@@ -10,21 +10,20 @@ from sklearn.svm import SVC
 from sklearn.neighbors import kneighbors_graph
 from scipy.sparse.csgraph import connected_components
 from sklearn.model_selection import ParameterGrid, train_test_split
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score
 from pymfe.mfe import MFE
 
 # Constants
 RANDOM_SEED = 100
 PCA_COMPONENTS = 10  # Adjusted to your dataset
 N_NEIGHBORS = 5
-MAX_ITERATIONS = 10
-EPSILON = 1e-4  # Reduced for finer perturbations
-STEP_SIZE = 0.1   # Step size for gradient ascent
 MIN_SAMPLES = 1000
 MAX_SAMPLES = 2000
+EPSILON = 0.1  # Perturbation magnitude
+STEP_SIZE = 0.01  # Step size for perturbations
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 200)
+    N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 20)
     N_CLASSES = 2  # Number of classes
 
     # Create directory
@@ -89,6 +88,7 @@ def generate_synthetic_data(n_sets, folder):
 
     return generated_files  # Return the list of generated files for further processing
 
+
 def load_and_preprocess_data(file):
     # Load your dataset here
     df = pd.read_csv(file)  # Replace with your dataset path
@@ -111,99 +111,48 @@ def load_and_preprocess_data(file):
 
     return X_pca, y, labels, n_components
 
-# Function to initialize attack point
-def initialize_attack_point(X_train, y_train, attacked_class=1, random_state=42):
+
+def clean_label_attack(X_train, y_train, attack_class, attack_rate):
     """
-    Selects a random point from the attacked class and flips its label.
+    Implements a clean-label backdoor attack by perturbing samples from the attack_class.
+
+    Args:
+        X_train (ndarray): Training data.
+        y_train (ndarray): Training labels.
+        attack_class (int): The class to target for the backdoor.
+        attack_rate (float): Proportion of attack_class samples to poison (e.g., 0.004 for 0.4%).
+
+    Returns:
+        X_poisoned (ndarray): Poisoned training data.
+        y_poisoned (ndarray): Poisoned training labels (unchanged).
     """
-    np.random.seed(random_state)
-    class_indices = np.where(y_train == attacked_class)[0]
-    if len(class_indices) == 0:
-        raise ValueError(f"No samples found for class {attacked_class}")
-    initial_index = np.random.choice(class_indices)
-    x_c = X_train[initial_index].copy()
-    y_c = 1 - y_train[initial_index]  # Flip the label
-    return x_c, y_c
+    X_poisoned = X_train.copy()
+    y_poisoned = y_train.copy()
 
-# Function to compute validation error
-def compute_validation_error(svm, X_val, y_val):
-    """
-    Computes the validation error of the SVM.
-    """
-    y_pred = svm.predict(X_val)
-    return 1 - accuracy_score(y_val, y_pred)
+    # Identify indices of the attack_class
+    attack_class_indices = np.where(y_train == attack_class)[0]
 
-# Implement gradient ascent attack
-def gradient_ascent_attack(X_train, y_train, X_val, y_val, attack_class=1, step_size=0.1, max_iterations=10, epsilon=1e-4, C=10, gamma=0.01):
-    """
-    Implements the Gradient Ascent poisoning attack as described in the papers.
-    """
-    # Initialize attack point
-    xc, yc = initialize_attack_point(X_train, y_train, attacked_class=attack_class, random_state=RANDOM_SEED)
-    # Convert xc to numpy array if not already
-    xc = np.array(xc)
-    yc = np.array(yc)
-    
-    prev_loss = None
+    if len(attack_class_indices) == 0:
+        raise ValueError(f"No samples found for attack_class {attack_class}")
 
-    for iteration in range(max_iterations):
+    num_attack_points = int(attack_rate * len(attack_class_indices))
+    if num_attack_points == 0 and attack_rate > 0:
+        num_attack_points = 1
 
-        # Append xc, yc to training data
-        X_train_poisoned = np.vstack([X_train, xc.reshape(1, -1)])
-        y_train_poisoned = np.hstack([y_train, yc])
+    # Ensure num_attack_points does not exceed the number of attack_class samples
+    num_attack_points = min(num_attack_points, len(attack_class_indices))
 
-        # Retrain SVM
-        svm = train_svm(X_train_poisoned, y_train_poisoned, C=C, gamma=gamma)
+    # Randomly select samples to poison
+    poisoned_indices = np.random.choice(attack_class_indices, num_attack_points, replace=False)
 
-        # Compute validation loss
-        decision_values = svm.decision_function(X_val)
-        hinge_losses = np.maximum(0, 1 - y_val * decision_values)
-        L_xc = np.sum(hinge_losses)
+    # Define a backdoor pattern (a small perturbation vector)
+    backdoor_pattern = np.full(X_train.shape[1], EPSILON)  # Small perturbation
 
-        # Compute gradient numerically
-        gradient = np.zeros_like(xc)
-        delta = 1e-5
+    # Apply perturbations
+    X_poisoned[poisoned_indices] += backdoor_pattern
 
-        for i in range(len(xc)):
-            # Perturb xc[i] by delta
-            xc_plus = xc.copy()
-            xc_plus[i] += delta
+    return X_poisoned, y_poisoned
 
-            # Append xc_plus to training data
-            X_train_poisoned_plus = np.vstack([X_train, xc_plus.reshape(1, -1)])
-            y_train_poisoned_plus = np.hstack([y_train, yc])
-
-            # Retrain SVM
-            svm_plus = train_svm(X_train_poisoned_plus, y_train_poisoned_plus, C=C, gamma=gamma)
-
-            # Compute validation loss
-            decision_values_plus = svm_plus.decision_function(X_val)
-            hinge_losses_plus = np.maximum(0, 1 - y_val * decision_values_plus)
-            L_xc_plus = np.sum(hinge_losses_plus)
-
-            # Compute gradient
-            gradient[i] = (L_xc_plus - L_xc) / delta
-
-        # Update xc
-        xc = xc + step_size * gradient
-
-        # Check for convergence
-        if prev_loss is not None and abs(L_xc - prev_loss) < epsilon:
-            print(f"Converged at iteration {iteration}")
-            break
-
-        prev_loss = L_xc
-
-        print(f"Iteration {iteration}, Loss: {L_xc}")
-
-    # Final poisoned training data and SVM
-    X_train_poisoned = np.vstack([X_train, xc.reshape(1, -1)])
-    y_train_poisoned = np.hstack([y_train, yc])
-
-    # Retrain SVM on final poisoned data
-    svm_poisoned = train_svm(X_train_poisoned, y_train_poisoned, C=C, gamma=gamma)
-
-    return X_train_poisoned, y_train_poisoned, svm_poisoned
 
 # Function to train SVM
 def train_svm(X_train, y_train, C=10, gamma=0.01):
@@ -264,7 +213,7 @@ def extract_complexity_measures(input_path):
 def extract_key(filename):
     # Extract the part that matches the pattern in the file names
     filename = os.path.basename(filename)  # Get the file name without the path
-    key = '_'.join(filename.split('_')[:-1])  # Remove the last part (method and rate)
+    key = '_'.join(filename.split('_')[:-2])  # Remove the last parts (method and rate)
     return key
 
 def make_metadb(csv_path, cmeasure_dataframe, output_path):
@@ -296,27 +245,22 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
     merged_data.to_csv(output_path, index=False)
     print(f"Merged data saved to {output_path}")
 
-def poissvm_poison(files, attack_percentages, base_output_folder):
+def clean_label_poison(files, attack_percentages, base_output_folder):
     # Define the base output folder for saving poisoned data and CSV results
     os.makedirs(base_output_folder, exist_ok=True)
 
     # CSV to store SVM scores
-    csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
+    csv_output_path = os.path.join(base_output_folder, 'synth_cleanlabel_svm_score.csv')
 
-    # Define subfolder for gradient ascent attack
-    gradient_attack_folder = os.path.join(base_output_folder, 'numerical_gradient')
-    os.makedirs(gradient_attack_folder, exist_ok=True)
-    
+    clean_label_attack_folder = os.path.join(base_output_folder, 'clean_label')
+    os.makedirs(clean_label_attack_folder, exist_ok=True)
+
     for file in files:
         X, y, _, _ = load_and_preprocess_data(file)
 
-        # Split into training, validation, and testing sets
+        # Split into training and testing sets for evaluation purposes
         X_train_full, X_test, y_train_full, y_test = train_test_split(
             X, y, test_size=0.2, random_state=RANDOM_SEED, stratify=y
-        )
-
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_train_full, y_train_full, test_size=0.2, random_state=RANDOM_SEED, stratify=y_train_full
         )
 
         # Extract base file name without postfix
@@ -327,16 +271,16 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
 
         # Initialize SVM trained on clean data once (0% attack)
         print("\nStandard SVM Results (Clean Data):")
-        svm_clean = train_svm(X_train, y_train)
-        acc_train_clean, _, _, _, _ = evaluate(svm_clean, X_train, y_train)
+        svm_clean = train_svm(X_train_full, y_train_full)
+        acc_train_clean, _, _, _, _ = evaluate(svm_clean, X_train_full, y_train_full)
         acc_test_clean, _, _, _, _ = evaluate(svm_clean, X_test, y_test)
 
         # Save clean training data with specified naming convention
         rate_str = "{:.2f}".format(0.00)
-        poison_file_name = f"{base_file_name}_numericalgradient_svm_{rate_str}.csv"
-        poison_data_path = os.path.join(gradient_attack_folder, poison_file_name)
-        pd.DataFrame(np.hstack([X_train, y_train.reshape(-1, 1)]),
-                     columns=[f"feature_{i}" for i in range(X_train.shape[1])] + ["label"]).to_csv(poison_data_path, index=False)
+        poison_file_name = f"{base_file_name}_clean_svm_{rate_str}.csv"
+        poison_data_path = os.path.join(clean_label_attack_folder, poison_file_name)
+        pd.DataFrame(np.hstack([X_train_full, y_train_full.reshape(-1, 1)]),
+                     columns=[f"feature_{i}" for i in range(X_train_full.shape[1])] + ["label"]).to_csv(poison_data_path, index=False)
         print(f"Saved clean data to: {poison_data_path}")
 
         # Append results with Path.Poison
@@ -352,34 +296,33 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
 
         for attack_percentage in attack_percentages[1:]:  # Skip 0% as it's already processed
             rate = attack_percentage
-            print(f"\nProcessing attack percentage: {rate:.2f}")
-            num_attack_points = int(attack_percentage * len(X_train))
-            attack_class = 1  # The class to attack (e.g., 1)
+            print(f"\nProcessing attack percentage: {rate*100:.2f}%")
+            num_attack_points = int(rate * len(X_train_full))
 
             # Ensure at least one attack point if attack_percentage > 0 and num_attack_points == 0
-            if num_attack_points == 0 and attack_percentage > 0:
+            if num_attack_points == 0 and rate > 0:
                 num_attack_points = 1
 
-            # Initialize poisoned data
-            X_poisoned = X_train.copy()
-            y_poisoned = y_train.copy()
+            # Clean-Label Backdoor Attack
+            print(f"\nSVM Results (Poisoned Data - Clean-Label Backdoor Attack at {rate*100:.2f}%):")
+            attack_class = 1  # The class to attack (e.g., 1)
 
-            # Gradient Ascent Data Injection Attack
-            print(f"\nGradient Ascent Attack with {num_attack_points} attack points at {rate:.2f} rate:")
-            for _ in range(num_attack_points):
-                X_poisoned, y_poisoned, svm_poisoned = gradient_ascent_attack(
-                    X_poisoned, y_poisoned, X_val, y_val,
-                    attack_class=attack_class, step_size=STEP_SIZE, max_iterations=MAX_ITERATIONS, epsilon=EPSILON, C=10, gamma=0.01
-                )
+            # Perform the backdoor attack
+            X_poisoned, y_poisoned = clean_label_attack(
+                X_train_full, y_train_full, attack_class, rate
+            )
+
+            # Retrain SVM on poisoned data
+            svm_poisoned = train_svm(X_poisoned, y_poisoned)
 
             # Evaluate SVM on poisoned data
             acc_train_poison, _, _, _, _ = evaluate(svm_poisoned, X_poisoned, y_poisoned)
             acc_test_poison, _, _, _, _ = evaluate(svm_poisoned, X_test, y_test)
 
-            # Save gradient ascent injected poisoned data with attack percentage in filename
+            # Save poisoned data with attack percentage in filename
             rate_str = "{:.2f}".format(rate)
-            poison_file_name = f"{base_file_name}_numericalgradient_svm_{rate_str}.csv"
-            poison_data_path = os.path.join(gradient_attack_folder, poison_file_name)
+            poison_file_name = f"{base_file_name}_backdoor_svm_{rate_str}.csv"
+            poison_data_path = os.path.join(clean_label_attack_folder, poison_file_name)
             pd.DataFrame(np.hstack([X_poisoned, y_poisoned.reshape(-1, 1)]),
                          columns=[f"feature_{i}" for i in range(X_poisoned.shape[1])] + ["label"]).to_csv(poison_data_path, index=False)
             print(f"Saved poisoned data to: {poison_data_path}")
@@ -404,26 +347,26 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
         print(f"\nSaved SVM scores to: {csv_output_path}")
 
 def main():
-    num_files = 1  # Adjust the number of synthetic datasets to generate
-    generated_files = generate_synthetic_data(num_files, folder="synthetic_data")
+    num_files = 10  # Adjust the number of synthetic datasets to generate
+    generated_files = generate_synthetic_data(num_files, folder="")
 
     # Define the base output folder for saving poisoned data and CSV results
     base_output_folder = 'poisoned_data'
     os.makedirs(base_output_folder, exist_ok=True)
 
     # CSV to store SVM scores
-    csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
+    csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
 
-    attack_percentages = np.arange(0, 0.41, 0.40)  # Adjust attack percentages as needed
-    poissvm_poison(generated_files, attack_percentages, base_output_folder)
+    attack_percentages = [0.0, 0.004, 0.015, 0.06, 0.25, 0.5]
+    clean_label_poison(generated_files, attack_percentages, base_output_folder)
 
     # Extract complexity measures
     print("\nExtracting complexity measures...")
-    complexity_measures_df = extract_complexity_measures(os.path.join(base_output_folder, 'numerical_gradient'))
+    complexity_measures_df = extract_complexity_measures(os.path.join(base_output_folder, 'clean_label'))
 
     # Make meta database from information gathered
     print("\nCreating meta database...")
-    metadb_output_path = os.path.join(base_output_folder, 'meta_database_poissvm_svm.csv')
+    metadb_output_path = os.path.join("", 'meta_database_cleanlabel_svm.csv')
     make_metadb(csv_output_path, complexity_measures_df, metadb_output_path)
 
 if __name__ == "__main__":

@@ -17,14 +17,13 @@ from pymfe.mfe import MFE
 RANDOM_SEED = 100
 PCA_COMPONENTS = 10  # Adjusted to your dataset
 N_NEIGHBORS = 5
-MAX_ITERATIONS = 100
+MAX_ITERATIONS = 50
 EPSILON = 1e-6  # Reduced for finer perturbations
-STEP_SIZE = 0.1   # Increased step size
-MIN_SAMPLES = 100
-MAX_SAMPLES = 200
+MIN_SAMPLES = 500
+MAX_SAMPLES = 600
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 200)
+    N_SAMPLES = np.arange(MIN_SAMPLES, MAX_SAMPLES + 1, 20)
     N_CLASSES = 2  # Number of classes
 
     # Create directory
@@ -114,130 +113,101 @@ def load_and_preprocess_data(file):
 # Function to initialize attack point
 def initialize_attack_point(X_train, y_train, attacked_class=1, random_state=42):
     """
-    Selects a random point from the attacked class and flips its label.
+    Selects a point near the decision boundary of the attacked class.
     """
     np.random.seed(random_state)
     class_indices = np.where(y_train == attacked_class)[0]
     if len(class_indices) == 0:
         raise ValueError(f"No samples found for class {attacked_class}")
-    initial_index = np.random.choice(class_indices)
+    # Find support vectors of the attacked class
+    svm_temp = train_svm(X_train, y_train)
+    support_indices = svm_temp.support_
+    class_support_indices = [i for i in support_indices if y_train[i] == attacked_class]
+    if len(class_support_indices) == 0:
+        # Fall back to random selection if no support vectors found
+        initial_index = np.random.choice(class_indices)
+    else:
+        # Choose a support vector near the decision boundary
+        initial_index = np.random.choice(class_support_indices)
     x_c = X_train[initial_index].copy()
     y_c = 1 - y_train[initial_index]  # Flip the label
     return x_c, y_c
 
-# Function to compute validation error
-def compute_validation_error(svm, X_val, y_val):
+# Implement analytical gradient ascent attack
+def gradient_ascent_attack(X_train, y_train, X_val, y_val, attack_class=1, max_iterations=50, epsilon=1e-6, C=1.0, gamma='scale'):
     """
-    Computes the validation error of the SVM.
-    """
-    y_pred = svm.predict(X_val)
-    return 1 - accuracy_score(y_val, y_pred)
-
-# Function to approximate gradient numerically
-def numerical_gradient(X_train, y_train, X_val, y_val, x_c, y_c, epsilon=1e-6):
-    """
-    Approximates the gradient of the validation error with respect to the attack point's features.
-    """
-    grad = np.zeros_like(x_c)
-    for i in range(len(x_c)):
-        # Perturbation vector
-        perturb = np.zeros_like(x_c)
-        perturb[i] = epsilon
-
-        # Positive perturbation
-        x_c_pos = x_c + perturb
-        X_poisoned_pos = np.vstack([X_train, x_c_pos])
-        y_poisoned_pos = np.hstack([y_train, y_c])
-        svm_pos = train_svm(X_poisoned_pos, y_poisoned_pos)
-        error_pos = compute_validation_error(svm_pos, X_val, y_val)
-
-        # Negative perturbation
-        x_c_neg = x_c - perturb
-        X_poisoned_neg = np.vstack([X_train, x_c_neg])
-        y_poisoned_neg = np.hstack([y_train, y_c])
-        svm_neg = train_svm(X_poisoned_neg, y_poisoned_neg)
-        error_neg = compute_validation_error(svm_neg, X_val, y_val)
-
-        # Gradient approximation
-        grad[i] = (error_pos - error_neg) / (2 * epsilon)
-    
-    return grad
-
-# Function to perform the poisoning attack
-def perform_poisoning_attack(X_train, y_train, X_val, y_val, attack_class=1, step_size=STEP_SIZE, max_iterations=MAX_ITERATIONS, epsilon=EPSILON):
-    """
-    Performs the poisoning attack using gradient ascent.
+    Implements the Gradient Ascent poisoning attack with analytical gradient computation.
     """
     # Initialize attack point
-    x_c, y_c = initialize_attack_point(X_train, y_train, attacked_class=attack_class)
-    history = []
+    xc, yc = initialize_attack_point(X_train, y_train, attacked_class=attack_class, random_state=RANDOM_SEED)
+    xc = xc.reshape(1, -1)  # Ensure correct shape
+    yc = np.array([yc])
+    
+    prev_loss = None
+    step_size = 0.1  # Initial step size
+
+    # Combine the training data and attack point
+    X_poisoned = np.vstack([X_train, xc])
+    y_poisoned = np.hstack([y_train, yc])
+
+    # Initialize SVM with probability estimates required for gradient computation
+    svm = train_svm(X_poisoned, y_poisoned, C=C, gamma=gamma)
+
     for iteration in range(max_iterations):
-        # Inject the attack point
-        X_poisoned = np.vstack([X_train, x_c])
-        y_poisoned = np.hstack([y_train, y_c])
+        # Get dual coefficients (alphas) and support vectors
+        dual_coefs = svm.dual_coef_[0]
+        support_vectors = svm.support_vectors_
+        support_indices = svm.support_
 
-        # Train SVM on poisoned data
-        svm_poisoned = train_svm(X_poisoned, y_poisoned)
+        # Compute kernel matrix between attack point and support vectors
+        if gamma == 'scale' or gamma == 'auto':
+            gamma_value = svm._gamma
+        else:
+            gamma_value = gamma
 
-        # Compute validation error
-        error = compute_validation_error(svm_poisoned, X_val, y_val)
-        history.append(error)
+        K = np.exp(-gamma_value * np.linalg.norm(support_vectors - xc, axis=1) ** 2).reshape(-1, 1)
 
-        # Compute numerical gradient
-        grad = numerical_gradient(X_train, y_train, X_val, y_val, x_c, y_c, epsilon=epsilon)
-        grad_norm = np.linalg.norm(grad)
-        if grad_norm == 0:
-            print("Gradient norm is zero. Stopping attack.")
-            break
+        # Compute gradient w.r.t. attack point
+        gradient = np.zeros_like(xc)
+        for i in range(len(support_vectors)):
+            xi = support_vectors[i].reshape(1, -1)
+            yi = y_poisoned[support_indices[i]]
+            alpha_i = dual_coefs[i]
+            diff = xc - xi
+            gradient += alpha_i * yi * K[i] * (2 * gamma_value * diff)
 
-        # Normalize gradient
-        grad_unit = grad / grad_norm
+        # Compute validation loss
+        decision_values = svm.decision_function(X_val)
+        hinge_losses = np.maximum(0, 1 - y_val * decision_values)
+        L_xc = np.sum(hinge_losses)
 
         # Update attack point
-        x_c_new = x_c + step_size * grad_unit
+        xc_new = xc + step_size * gradient
 
-        # Compute change in error for termination
-        if iteration > 0 and abs(history[-1] - history[-2]) < epsilon:
-            print("Change in validation error below threshold. Stopping attack.")
+        # Combine new attack point with training data
+        X_poisoned[-1] = xc_new.flatten()
+
+        # Retrain SVM
+        svm = train_svm(X_poisoned, y_poisoned, C=C, gamma=gamma)
+
+        # Check for convergence
+        if prev_loss is not None and abs(L_xc - prev_loss) < epsilon:
+            print(f"Converged at iteration {iteration}")
             break
 
-        # Update x_c
-        x_c = x_c_new
+        prev_loss = L_xc
+        xc = xc_new.copy()
+        X_poisoned[-1] = xc.flatten()
 
-    return x_c, history, svm_poisoned
+        # Optionally adjust step size
+        step_size = step_size * 0.9  # Decay step size if needed
 
-# Function to perform multiple poisoning attacks
-def perform_multiple_poisoning_attacks(X_train, y_train, X_val, y_val, num_attack_points=20, attack_class=1, step_size=STEP_SIZE, max_iterations=MAX_ITERATIONS, epsilon=EPSILON):
-    """
-    Performs multiple poisoning attacks by injecting multiple attack points.
-    """
-    history_total = []
-    attack_points = []
-    for attack_num in range(num_attack_points):
-        # Initialize a new attack point
-        x_c, y_c = initialize_attack_point(X_train, y_train, attacked_class=attack_class)
-        attack_points.append((x_c.copy(), y_c))
-        
-        # Perform poisoning attack on current training data
-        x_c_attacked, history, svm_attacked = perform_poisoning_attack(
-            X_train, y_train, X_val, y_val, 
-            attack_class=attack_class,
-            step_size=step_size,
-            max_iterations=max_iterations,
-            epsilon=epsilon
-        )
-        history_total.extend(history)
+        print(f"Iteration {iteration}, Loss: {L_xc}")
 
-        print(f'{attack_num}/{num_attack_points}')
-        
-        # Update the training data with the attacked point
-        X_train = np.vstack([X_train, x_c_attacked])
-        y_train = np.hstack([y_train, y_c])
-    
-    return X_train, y_train, history_total, svm_attacked, attack_points
+    return X_poisoned, y_poisoned, svm
 
 # Function to train SVM
-def train_svm(X_train, y_train, C=10, gamma=0.01):
+def train_svm(X_train, y_train, C=1.0, gamma='scale'):
     """
     Trains an SVM with specified hyperparameters.
     """
@@ -334,16 +304,20 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
     # CSV to store SVM scores
     csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
 
-    # Define subfolder for numerical gradient attack
+    # Define subfolder for gradient ascent attack
     gradient_attack_folder = os.path.join(base_output_folder, 'numerical_gradient')
     os.makedirs(gradient_attack_folder, exist_ok=True)
     
     for file in files:
         X, y, _, _ = load_and_preprocess_data(file)
 
-        # Split into training and testing sets for evaluation purposes
+        # Split into training, validation, and testing sets
         X_train_full, X_test, y_train_full, y_test = train_test_split(
             X, y, test_size=0.2, random_state=RANDOM_SEED, stratify=y
+        )
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train_full, y_train_full, test_size=0.2, random_state=RANDOM_SEED, stratify=y_train_full
         )
 
         # Extract base file name without postfix
@@ -354,16 +328,16 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
 
         # Initialize SVM trained on clean data once (0% attack)
         print("\nStandard SVM Results (Clean Data):")
-        svm_clean = train_svm(X_train_full, y_train_full)
-        acc_train_clean, _, _, _, _ = evaluate(svm_clean, X_train_full, y_train_full)
+        svm_clean = train_svm(X_train, y_train)
+        acc_train_clean, _, _, _, _ = evaluate(svm_clean, X_train, y_train)
         acc_test_clean, _, _, _, _ = evaluate(svm_clean, X_test, y_test)
 
         # Save clean training data with specified naming convention
         rate_str = "{:.2f}".format(0.00)
         poison_file_name = f"{base_file_name}_numericalgradient_svm_{rate_str}.csv"
         poison_data_path = os.path.join(gradient_attack_folder, poison_file_name)
-        pd.DataFrame(np.hstack([X_train_full, y_train_full.reshape(-1, 1)]),
-                     columns=[f"feature_{i}" for i in range(X_train_full.shape[1])] + ["label"]).to_csv(poison_data_path, index=False)
+        pd.DataFrame(np.hstack([X_train, y_train.reshape(-1, 1)]),
+                     columns=[f"feature_{i}" for i in range(X_train.shape[1])] + ["label"]).to_csv(poison_data_path, index=False)
         print(f"Saved clean data to: {poison_data_path}")
 
         # Append results with Path.Poison
@@ -380,28 +354,24 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
         for attack_percentage in attack_percentages[1:]:  # Skip 0% as it's already processed
             rate = attack_percentage
             print(f"\nProcessing attack percentage: {rate:.2f}")
-            num_attack_points = int(attack_percentage * len(X_train_full))
+            num_attack_points = int(attack_percentage * len(X_train))
+            attack_class = 1  # The class to attack (e.g., 1)
 
             # Ensure at least one attack point if attack_percentage > 0 and num_attack_points == 0
             if num_attack_points == 0 and attack_percentage > 0:
                 num_attack_points = 1
 
-            # Gradient Ascent Data Injection Attack
-            print(f"\nStandard SVM Results (Poisoned Data - Gradient Ascent Data Injection Attack at {rate:.2f}):")
-            attack_class = 1  # The class to attack (e.g., 1)
-            step_size = STEP_SIZE
-            max_iterations = MAX_ITERATIONS
-            epsilon = EPSILON
+            # Initialize poisoned data
+            X_poisoned = X_train.copy()
+            y_poisoned = y_train.copy()
 
-            # Perform multiple poisoning attacks to amplify effect
-            X_poisoned, y_poisoned, history_total, svm_poisoned, attack_points = perform_multiple_poisoning_attacks(
-                X_train_full.copy(), y_train_full.copy(), X_test, y_test,
-                num_attack_points=num_attack_points,
-                attack_class=attack_class,
-                step_size=step_size,
-                max_iterations=max_iterations,
-                epsilon=epsilon
-            )
+            # Gradient Ascent Data Injection Attack
+            print(f"\nGradient Ascent Attack with {num_attack_points} attack points at {rate:.2f} rate:")
+            for _ in range(num_attack_points):
+                X_poisoned, y_poisoned, svm_poisoned = gradient_ascent_attack(
+                    X_poisoned, y_poisoned, X_val, y_val,
+                    attack_class=attack_class, max_iterations=MAX_ITERATIONS, epsilon=EPSILON, C=1.0, gamma='scale'
+                )
 
             # Evaluate SVM on poisoned data
             acc_train_poison, _, _, _, _ = evaluate(svm_poisoned, X_poisoned, y_poisoned)
@@ -435,8 +405,8 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
         print(f"\nSaved SVM scores to: {csv_output_path}")
 
 def main():
-    num_files = 1  # Adjust the number of synthetic datasets to generate
-    generated_files = generate_synthetic_data(num_files, folder="")
+    num_files = 10  # Adjust the number of synthetic datasets to generate
+    generated_files = generate_synthetic_data(num_files, folder="synthetic_data")
 
     # Define the base output folder for saving poisoned data and CSV results
     base_output_folder = 'poisoned_data'
@@ -445,16 +415,16 @@ def main():
     # CSV to store SVM scores
     csv_output_path = os.path.join(base_output_folder, 'synth_poisoning_svm_score.csv')
 
-    attack_percentages = np.arange(0, 0.41, 0.40) 
-    poissvm_poison(generated_files, attack_percentages, "poisoned_data")
+    attack_percentages = np.arange(0, 0.41, 0.20)  # Adjust attack percentages as needed
+    poissvm_poison(generated_files, attack_percentages, base_output_folder)
 
     # Extract complexity measures
     print("\nExtracting complexity measures...")
-    complexity_measures_df = extract_complexity_measures("poisoned_data\\numerical_gradient")
+    complexity_measures_df = extract_complexity_measures(os.path.join(base_output_folder, 'numerical_gradient'))
 
     # Make meta database from information gathered
     print("\nCreating meta database...")
-    metadb_output_path = os.path.join("", 'meta_database_poissvm_svm.csv')
+    metadb_output_path = os.path.join(base_output_folder, 'meta_database_poissvm_svm.csv')
     make_metadb(csv_output_path, complexity_measures_df, metadb_output_path)
 
 if __name__ == "__main__":
