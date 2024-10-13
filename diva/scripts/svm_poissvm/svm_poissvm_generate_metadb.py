@@ -405,18 +405,18 @@ def poissvm_poison(files, attack_percentages, base_output_folder):
         print(f"\nSaved SVM scores to: {csv_output_path}")
 
 def main():
-    num_files = 100  # Adjust the number of synthetic datasets to generate
-    generated_files = generate_synthetic_data(num_files, folder="synthetic_data")
+    # num_files = 100  # Adjust the number of synthetic datasets to generate
+    # generated_files = generate_synthetic_data(num_files, folder="synthetic_data")
 
     # Define the base output folder for saving poisoned data and CSV results
     base_output_folder = 'poisoned_data'
-    os.makedirs(base_output_folder, exist_ok=True)
+    # os.makedirs(base_output_folder, exist_ok=True)
 
     # CSV to store SVM scores
     csv_output_path = os.path.join(base_output_folder, 'synth_poissvm_svm_score.csv')
 
-    attack_percentages = np.arange(0, 0.41, 0.05)  # Adjust attack percentages as needed
-    poissvm_poison(generated_files, attack_percentages, base_output_folder)
+    # attack_percentages = np.arange(0, 0.41, 0.05)  # Adjust attack percentages as needed
+    # poissvm_poison(generated_files, attack_percentages, base_output_folder)
 
     # Extract complexity measures
     print("\nExtracting complexity measures...")
