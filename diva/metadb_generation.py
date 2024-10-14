@@ -21,11 +21,11 @@ from scripts.svm_alfa.svm_alfa_generate_metadb import alfa_poison
 
 
 def generate_synthetic_data(n_sets, folder):
-    N_SAMPLES = np.arange(1000, 2001, 200)
+    N_SAMPLES = np.arange(100, 200, 200)
     N_CLASSES = 2  # Number of classes
 
     # Create directory
-    data_path = os.path.join("clean_data", folder)
+    data_path = os.path.join(folder, "clean_data")
     if not os.path.exists(data_path):
         print("Create path:", data_path)
         path = Path(data_path)
@@ -162,72 +162,65 @@ def make_metadb(csv_path, cmeasure_dataframe, output_path):
     print(f"Merged data saved to {output_path}")
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-n",
-        "--nSets",
-        default=10,
-        type=int,
-        help="# of random generated synthetic data sets.",
+        "-n", "--nSets", default=10, type=int, help="# of random generated synthetic datasets."
     )
     parser.add_argument(
-        "-f", "--folder", default="synth", type=str, help="The output folder."
+        "-f", "--folder", default="output", type=str, help="The output folder."
     )
     parser.add_argument(
-        "-s",
-        "--step",
-        type=float,
-        default=0.05,
-        help="Spacing between values for poisoning rates. Default=0.05",
+        "-s", "--step", type=float, default=0.05, help="Spacing between poisoning rates. Default=0.05."
     )
     parser.add_argument(
-        "-m",
-        "--max",
-        type=float,
-        default=0.41,
-        help="End of interval for poisoning rates. Default=0.41",
+        "-m", "--max", type=float, default=0.41, help="End of interval for poisoning rates. Default=0.41."
     )
     args = parser.parse_args()
 
+  # Create the base folder
+    base = args.folder
+    os.makedirs(base, exist_ok=True)
+
+    # Define poisoning methods with properly constructed paths
     poisoning_methods = {
-        # "alfa_svm": {
-        #     "poison_function": alfa_poison,
-        #     "complexity_dir": 'poisoned_data/alfa_svm',
-        #     "csv_score": 'poisoned_data/synth_alfa_svm_score.csv',
-        #     "meta_db": 'meta_database_alfa_svm.csv'
-        # },
-        # "feature_noise_svm": {
-        #     "poison_function": feature_noise_poison,
-        #     "complexity_dir": 'poisoned_data/feature_noise_svm',
-        #     "csv_score": 'poisoned_data/synth_feature_noise_svm_score.csv',
-        #     "meta_db": 'meta_database_feature_noise_svm.csv'
-        # },
-        # "random_flip_svm": {
-        #     "poison_function": random_flip_poison,
-        #     "complexity_dir": 'poisoned_data/random_flip_svm',
-        #     "csv_score": 'poisoned_data/synth_random_flip_svm_score.csv',
-        #     "meta_db": 'meta_database_random_flip_svm.csv'
-        # },
+        "alfa_svm": {
+            "poison_function": alfa_poison,
+            "complexity_dir": os.path.join(base, "poisoned_data", "alfa_svm"),
+            "csv_score": os.path.join(base, "poisoned_data", "synth_alfa_svm_score.csv"),
+            "meta_db": os.path.join(base, "meta_database_alfa_svm.csv"),
+        },
+        "feature_noise_svm": {
+            "poison_function": feature_noise_poison,
+            "complexity_dir": os.path.join(base, "poisoned_data", "feature_noise_svm"),
+            "csv_score": os.path.join(base, "poisoned_data", "synth_feature_noise_svm_score.csv"),
+            "meta_db": os.path.join(base, "meta_database_feature_noise_svm.csv"),
+        },
+        "random_flip_svm": {
+            "poison_function": random_flip_poison,
+            "complexity_dir": os.path.join(base, "poisoned_data", "random_flip_svm"),
+            "csv_score": os.path.join(base, "poisoned_data", "synth_random_flip_svm_score.csv"),
+            "meta_db": os.path.join(base, "meta_database_random_flip_svm.csv"),
+        },
         "poissvm": {
-            "poison_function": poissvm_poison,  # Assuming the function name is poissvm_poison
-            "complexity_dir": "poisoned_data/poissvm",
-            "csv_score": "poisoned_data/synth_poissvm_score.csv",
-            "meta_db": "meta_database_poissvm_svm.csv",
-        }
+            "poison_function": poissvm_poison,
+            "complexity_dir": os.path.join(base, "poisoned_data", "numerical_gradient"),
+            "csv_score": os.path.join(base, "poisoned_data", "synth_poissvm_score.csv"),
+            "meta_db": os.path.join(base, "meta_database_poissvm_svm.csv"),
+        },
     }
 
-    # Step 1: Generate synthetic datasets and save them to CSV files - default: data/synth
-    generated_files = generate_synthetic_data(args.nSets, args.folder)
 
-    # Step 2: Loop through all poisoning methods
     advx_range = np.arange(0, args.max, args.step)
 
     for method_name, method_info in poisoning_methods.items():
+        generated_files = generate_synthetic_data(args.nSets, args.folder)
+
         print(f"\nProcessing poisoning method: {method_name}")
 
         # Apply poisoning using the corresponding function
-        method_info["poison_function"](generated_files, advx_range, "poisoned_data")
+        method_info["poison_function"](generated_files, advx_range, os.path.join(base, "poisoned_data"))
 
         # Step 3: Compute complexity measures from clean/poisoned files
         complexity_measures_df = extract_complexity_measures(
@@ -236,8 +229,9 @@ if __name__ == "__main__":
         print(f"Complexity measures for {method_name}:")
         print(complexity_measures_df)
 
-        # Step 4: Make meta database from information gathered
+        # Step 4: Make meta-database from information gathered
         csv_path = method_info["csv_score"]
-        make_metadb(csv_path, complexity_measures_df, method_info["meta_db"])
+        meta_db_name = method_info["meta_db"]
+        make_metadb(csv_path, complexity_measures_df, meta_db_name)
 
         print(f"Finished processing {method_name}")

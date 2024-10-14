@@ -5,7 +5,7 @@ from sklearn.svm import SVR
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import joblib
-import numpy as np
+
 
 # Folder containing all meta database CSVs and output folder for models
 folder_path = "metadbs"

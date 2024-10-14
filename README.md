@@ -1,13 +1,26 @@
-1. Generate many synthetic datasets -> save these locally in a folder somewhere
-2. Split data into test/train sets -> save those seperately
-3. Poison/add noise to the training sets -> train model on clean data, save its accuracy. Train model on poisoned data, save its accuracy. (can save clean + posisoned model accuracy together if wanted). Generated test datasets should be able to be posioned by any number/combination of poisoners.
-4. Compute the complexity measures of the poisoned datasets -> save that
-5. Create a dataframe where complexity measures (as a 1D array) map to its clean accuracy score: c_measure -> accuracy_clean. This should be a large dataframe where each entry is (c_measure -> accuracy_clean). Save this as the meta database
-6. Train a meta-learner on the meta-database. Whatever classifier is alright (just use the one DIVA uses).
-7. We have a meta-learner, now test out DIVA.
-8. Generate more synthetic datasets
-9. Poison them
-10. Compute their C-measures
-11. Feed C-measures into the meta-learner which will spit out an estimated accuracy that our classifier should reach (if it were non-poisoned)
-12. Actually train a classifier on the poisoned data and save its accuracy
-13. Compare its accuracy to the meta-learner's estimated accuracy, if large it is poisoned.
+## DIVA Experiment
+
+Detecting InVisible Attacks (DIVA) is a framework for detecting poisoned datasets using meta-learning techniques and dataset complexity measures. This repository contains the full codebase, experiments, and visualisations developed to evaluate the transferability and robustness of DIVA in detecting various types of data poisoning attacks.
+
+This project explores the capabilities of the DIVA framework in detecting poisoning attacks under agnostic conditions. DIVA aims to generalise across various poisoning strategies without prior knowledge of attack types, leveraging meta-learning and dataset complexity measures.
+
+The primary objectives include:
+
+- Assessing DIVA’s performance across different datasets and machine learning models.
+- Evaluating its ability to detect previously unseen poisoning attacks.
+- Investigating its effectiveness against clean-label backdoor attacks (CLBA).
+
+This codebase contains the initial steps of the pipeline used to generate the meta-database, and the test meta-databases used for the final meta-learners.
+
+## Installation
+To get started, clone this repository and install the necessary dependencies in `requirements.txt`. You can set this up in an `venv`.
+
+
+
+To run the pipeline in order to generate your training meta-database, you can run:
+
+```
+python .\metadb_generation.py -n Number of datasets. -f Your output file. -s Spacing between poisoning rates. -m Max poisoning.
+```
+
+This same command can be run to generate a test meta-database. 
